@@ -38,8 +38,8 @@ namespace NUnitToMSTest.Rewriter
             m_rewriteAsserts = rewriteAsserts;
 
             m_namespaceMsTest =
-                (QualifiedNameSyntax) SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
-            m_namespaceNUnit = (QualifiedNameSyntax) SyntaxFactory.ParseName("NUnit.Framework");
+                (QualifiedNameSyntax)SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
+            m_namespaceNUnit = (QualifiedNameSyntax)SyntaxFactory.ParseName("NUnit.Framework");
         }
 
         public override SyntaxNode VisitUsingDirective(UsingDirectiveSyntax node)
@@ -57,7 +57,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            node = (MethodDeclarationSyntax) base.VisitMethodDeclaration(node);
+            node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node);
 
             try
             {
@@ -88,7 +88,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitAttribute(AttributeSyntax node)
         {
-            node = (AttributeSyntax) base.VisitAttribute(node);
+            node = (AttributeSyntax)base.VisitAttribute(node);
             return HandleAttribute(node);
         }
 
@@ -155,22 +155,22 @@ namespace NUnitToMSTest.Rewriter
                     Changed = true;
                     break;
                 default:
-                {
-                    if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
                     {
-                        // Replace (potential) unqualified name with qualified name.
-                        // Otherwise, an attribute whose unqualified name is accidentally the same
-                        // as that of some other, unrelated, attribute could semantically change (since we
-                        // replace the "using NUnit.Framework" with "using <MSTest>").
-                        var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
-                        m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
-                            node.ToFullString()));
-                        node = node.WithName(fullQualifiedName);
-                        Changed = true;
-                    }
+                        if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
+                        {
+                            // Replace (potential) unqualified name with qualified name.
+                            // Otherwise, an attribute whose unqualified name is accidentally the same
+                            // as that of some other, unrelated, attribute could semantically change (since we
+                            // replace the "using NUnit.Framework" with "using <MSTest>").
+                            var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
+                            m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
+                                node.ToFullString()));
+                            node = node.WithName(fullQualifiedName);
+                            Changed = true;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
             }
 
             return node;
@@ -212,60 +212,91 @@ namespace NUnitToMSTest.Rewriter
         {
             base.VisitInvocationExpression(node);
 
-
             if (m_rewriteAsserts)
             {
                 var info = m_semanticModel.GetSymbolInfo(node);
 
-                if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()))
+                if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()) &&
+                    node.Expression is MemberAccessExpressionSyntax ma)
                 {
-                    var ma = node.Expression as MemberAccessExpressionSyntax;
-                    if (ma != null)
+                    if ("That".Equals(ma.Name?.ToString()))
                     {
-                        if ("That".Equals(ma.Name?.ToString()))
-                        {
-                            var firstArgument = node.ArgumentList.Arguments.First();
-                            var secondArgument = node.ArgumentList.Arguments.Last();
+                        var firstArgument = node.ArgumentList.Arguments.First();
+                        var secondArgument = node.ArgumentList.Arguments.Last();
 
-                            if (TryGetExceptionFromThrowsStaticHelper(secondArgument, out var exceptionType,
-                                    out var helperType, out var helperMethod) ||
-                                TryGetExceptionFromThrowsTypeOf(secondArgument, out exceptionType, out helperType,
-                                    out helperMethod) ||
-                                TryGetExceptionFromThrowsInstanceOf(secondArgument, out exceptionType, out helperType,
-                                    out helperMethod))
-                            {
-                                node = SyntaxFactory.InvocationExpression(
-                                        SyntaxFactory.MemberAccessExpression(
-                                            SyntaxKind.SimpleMemberAccessExpression,
-                                            SyntaxFactory.IdentifierName(helperType),
-                                            SyntaxFactory.GenericName(SyntaxFactory.Identifier(helperMethod))
-                                                .WithTypeArgumentList(
-                                                    SyntaxFactory.TypeArgumentList(
-                                                        SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
-                                                            SyntaxFactory.IdentifierName(exceptionType))))))
-                                    .WithArgumentList(
-                                        SyntaxFactory.ArgumentList(
-                                            SyntaxFactory.SingletonSeparatedList(firstArgument))
-                                    ).WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
-                            }
-                            else if (HasBooleanResult(firstArgument.Expression, m_semanticModel))
-                            {
-                                // A simple ==> Assert.That(<boolean expression>); 
-                                Console.WriteLine("HERE");
-                                ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
-                                node = node.WithExpression(ma);
-                            }
-                        }
-                        else if ("Null".Equals(ma.Name?.ToString()))
+                        if (TryGetExceptionFromThrowsStaticHelper(secondArgument, out var exceptionType) ||
+                            TryGetExceptionFromThrowsTypeOf(secondArgument, out exceptionType))
                         {
-                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsNull"));
+                            // Assert.ThrowsException<<ExceptionType>>(() => /* whatever */));
+
+                            node = SyntaxFactory.InvocationExpression(
+                                    SyntaxFactory.MemberAccessExpression(
+                                        SyntaxKind.SimpleMemberAccessExpression,
+                                        SyntaxFactory.IdentifierName("Assert"),
+                                        SyntaxFactory.GenericName(SyntaxFactory.Identifier("ThrowsException"))
+                                            .WithTypeArgumentList(
+                                                SyntaxFactory.TypeArgumentList(
+                                                    SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
+                                                        SyntaxFactory.IdentifierName(exceptionType))))))
+                                .WithArgumentList(
+                                    SyntaxFactory.ArgumentList(
+                                        SyntaxFactory.SingletonSeparatedList(firstArgument))
+                                ).WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                        }
+                        else if (TryGetExceptionFromThrowsInstanceOf(secondArgument, out exceptionType))
+                        {
+                            // Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /* whatever */), typeof(<ExceptionType>));
+
+                            node = SyntaxFactory.InvocationExpression(
+                                    SyntaxFactory.MemberAccessExpression(
+                                        SyntaxKind.SimpleMemberAccessExpression,
+                                        SyntaxFactory.IdentifierName("Assert"),
+                                        SyntaxFactory.IdentifierName("InstanceOfType")))
+                                .WithArgumentList(
+                                    SyntaxFactory.ArgumentList(
+                                        SyntaxFactory.SeparatedList<ArgumentSyntax>(
+                                            new SyntaxNodeOrToken[]
+                                            {
+                                                SyntaxFactory.Argument(
+                                                    SyntaxFactory.InvocationExpression(
+                                                            SyntaxFactory.MemberAccessExpression(
+                                                                SyntaxKind.SimpleMemberAccessExpression,
+                                                                SyntaxFactory.IdentifierName("Assert"),
+                                                                SyntaxFactory.GenericName(
+                                                                        SyntaxFactory.Identifier("ThrowsException"))
+                                                                    .WithTypeArgumentList(
+                                                                        SyntaxFactory.TypeArgumentList(
+                                                                            SyntaxFactory
+                                                                                .SingletonSeparatedList<TypeSyntax>(
+                                                                                    SyntaxFactory.IdentifierName(
+                                                                                        "Exception"))))))
+                                                        .WithArgumentList(
+                                                            SyntaxFactory.ArgumentList(
+                                                                SyntaxFactory.SingletonSeparatedList(firstArgument))
+                                                        )),
+                                                SyntaxFactory.Token(SyntaxKind.CommaToken),
+                                                SyntaxFactory.Argument(
+                                                    SyntaxFactory.TypeOfExpression(
+                                                        SyntaxFactory.IdentifierName(exceptionType)))
+                                            })))
+                                .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                        }
+                        else if (HasBooleanResult(firstArgument.Expression, m_semanticModel))
+                        {
+                            // A simple ==> Assert.That(<boolean expression>); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
                             node = node.WithExpression(ma);
                         }
-                        else if ("NotNull".Equals(ma.Name?.ToString()))
-                        {
-                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
-                            node = node.WithExpression(ma);
-                        }
+                    }
+                    else if ("Null".Equals(ma.Name?.ToString()))
+                    {
+                        ma = ma.WithName(SyntaxFactory.IdentifierName("IsNull"));
+                        node = node.WithExpression(ma);
+                    }
+                    else if ("NotNull".Equals(ma.Name?.ToString()))
+                    {
+                        ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
+                        node = node.WithExpression(ma);
                     }
                 }
             }
@@ -288,13 +319,10 @@ namespace NUnitToMSTest.Rewriter
             return false;
         }
 
-        private static bool TryGetExceptionFromThrowsStaticHelper(ArgumentSyntax node, out string name,
-            out string helperType, out string helperMethod)
+        private static bool TryGetExceptionFromThrowsStaticHelper(ArgumentSyntax node, out string name)
         {
             // Handles Assert.That(() => Dummy(), Throws.ArgumentNullException);
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            helperType = "Assert";
-            helperMethod = "ThrowsException";
 
             name = null;
             if (node.Expression is MemberAccessExpressionSyntax maes &&
@@ -308,16 +336,13 @@ namespace NUnitToMSTest.Rewriter
             return false;
         }
 
-        private static bool TryGetExceptionFromThrowsTypeOf(ArgumentSyntax node, out string name,
-            out string helperType, out string helperMethod)
+        private static bool TryGetExceptionFromThrowsTypeOf(ArgumentSyntax node, out string name)
         {
             // Handles Assert.That(() => Dummy(), Throws.TypeOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
             // Handles Assert.That(() => Dummy(), Throws.Exception.TypeOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-            helperType = "Assert";
-            helperMethod = "ThrowsException";
             name = null;
 
             if (node.Expression is InvocationExpressionSyntax ies &&
@@ -336,16 +361,13 @@ namespace NUnitToMSTest.Rewriter
             return false;
         }
 
-        private static bool TryGetExceptionFromThrowsInstanceOf(ArgumentSyntax node, out string name,
-            out string helperType, out string helperMethod)
+        private static bool TryGetExceptionFromThrowsInstanceOf(ArgumentSyntax node, out string name)
         {
             // Handles Assert.That(() => Dummy(), Throws.InstanceOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
             // Handles Assert.That(() => Dummy(), Throws.Exception.InstanceOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-            helperType = "AssertEx";
-            helperMethod = "ThrowsInstanceOf";
             name = null;
 
             if (node.Expression is InvocationExpressionSyntax ies &&

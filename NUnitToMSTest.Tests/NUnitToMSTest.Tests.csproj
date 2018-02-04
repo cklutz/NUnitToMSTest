@@ -148,7 +148,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AssertRewriteTests.cs" />
+    <Compile Include="Asserts\BooleanThatTests.cs" />
+    <Compile Include="Asserts\NullNotNullTests.cs" />
+    <Compile Include="Asserts\ThrowsTests.cs" />
     <Compile Include="Attributes\DescriptionAttributeTests.cs" />
     <Compile Include="Attributes\CategoryAttributeTests.cs" />
     <Compile Include="Attributes\PropertyAttributeTests.cs" />
