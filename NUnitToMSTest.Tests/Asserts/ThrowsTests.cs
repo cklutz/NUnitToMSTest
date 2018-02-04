@@ -42,6 +42,40 @@ public class FooTests
         }
 
         [TestMethod]
+        public void TestThrowsMoreArgs()
+        {
+            const string actual = @"
+using NUnit.Framework;
+public class FooTests
+{ 
+    void Dummy() { }
+    void Test()
+    {
+        Assert.That(Dummy, Throws.ArgumentNullException, ""message {0}"", 1);
+    }
+}
+";
+            const string expected = @"
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+public class FooTests
+{ 
+    void Dummy() { }
+    void Test()
+    {
+        Assert.ThrowsException<ArgumentNullException>(Dummy,""message {0}"",1);
+    }
+}
+";
+            TestRefactoringWithAsserts(actual, expected,
+                (result, rw) =>
+                {
+                    Assert.IsTrue(rw.Changed);
+                    Assert.AreEqual(0, rw.Diagnostics.Count());
+                    Assert.AreEqual(expected, result.ToFullString());
+                });
+        }
+
+        [TestMethod]
         public void TestThrowsTypeOfStaticAccessor()
         {
             const string actual = @"

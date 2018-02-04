@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -219,27 +220,44 @@ namespace NUnitToMSTest.Rewriter
                 if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()) &&
                     node.Expression is MemberAccessExpressionSyntax ma)
                 {
-                    if ("That".Equals(ma.Name?.ToString()))
+                    if ("That".Equals(ma.Name?.ToString()) && node.ArgumentList?.Arguments.Count > 0)
                     {
-                        var firstArgument = node.ArgumentList.Arguments.First();
-                        var secondArgument = node.ArgumentList.Arguments.Last();
+                        var firstArgument = node.ArgumentList.Arguments[0];
 
-                        if (TryGetExceptionFromThrowsStaticHelper(secondArgument, out var exceptionType) ||
-                            TryGetExceptionFromThrowsTypeOf(secondArgument, out exceptionType))
+                        if (node.ArgumentList.Arguments.Count == 1)
                         {
-                            node = MSTestSyntaxFactory.ThrowsExceptionSyntax(firstArgument.Expression, exceptionType)
-                                .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                            if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
+                            {
+                                // A simple ==> Assert.That(<boolean expression>); 
+                                ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+                                node = node.WithExpression(ma);
+                            }
                         }
-                        else if (TryGetExceptionFromThrowsInstanceOf(secondArgument, out exceptionType))
+                        else
                         {
-                            node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression, exceptionType)
-                                .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
-                        }
-                        else if (HasBooleanResult(firstArgument.Expression, m_semanticModel))
-                        {
-                            // A simple ==> Assert.That(<boolean expression>); 
-                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
-                            node = node.WithExpression(ma);
+                            var secondArgument = node.ArgumentList.Arguments[1];
+                            var remainingArguments = new SeparatedSyntaxList<ArgumentSyntax>();
+                            remainingArguments = remainingArguments.AddRange(node.ArgumentList.Arguments.Skip(2));
+
+                            if (TryGetExceptionFromThrowsStaticHelper(secondArgument, out var exceptionType) ||
+                                TryGetExceptionFromThrowsTypeOf(secondArgument, out exceptionType))
+                            {
+                                node = MSTestSyntaxFactory.ThrowsExceptionSyntax(firstArgument.Expression,
+                                        exceptionType, remainingArguments)
+                                    .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                            }
+                            else if (TryGetExceptionFromThrowsInstanceOf(secondArgument, out exceptionType))
+                            {
+                                node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression,
+                                        exceptionType, remainingArguments)
+                                    .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                            }
+                            else if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
+                            {
+                                // A simple ==> Assert.That(<boolean expression>); 
+                                ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+                                node = node.WithExpression(ma);
+                            }
                         }
                     }
                     else if ("Null".Equals(ma.Name?.ToString()))
@@ -258,20 +276,6 @@ namespace NUnitToMSTest.Rewriter
             return node;
         }
 
-
-        private static bool HasBooleanResult(ExpressionSyntax expression, SemanticModel semanticModel)
-        {
-            if (expression != null)
-            {
-                Console.WriteLine(expression);
-                var typeInfo = semanticModel.GetTypeInfo(expression);
-                Console.WriteLine(typeInfo.ConvertedType);
-                if (typeInfo.ConvertedType?.SpecialType == SpecialType.System_Boolean)
-                    return true;
-            }
-
-            return false;
-        }
 
         private static bool TryGetExceptionFromThrowsStaticHelper(ArgumentSyntax node, out string name)
         {

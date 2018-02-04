@@ -1,11 +1,4 @@
 
-Assert. -- InstanceOf ---
-
-	Don't need external support of AssertEx.ThrowsInstanceOf<...>, if:
-
-	Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /* whatever */), typeof(<ExceptionType>));
-
-
 Assert.That(() => /*whatever*/, Throws.<whatever>.With.Message.Contains("the message"));
                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

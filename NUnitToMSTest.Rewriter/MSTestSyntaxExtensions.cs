@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -14,8 +11,11 @@ namespace NUnitToMSTest.Rewriter
         /// </summary>
         /// <param name="expression"></param>
         /// <param name="exceptionType"></param>
+        /// <param name="additionalArguments"></param>
         /// <returns></returns>
-        public static InvocationExpressionSyntax ThrowsExceptionSyntax(ExpressionSyntax expression, string exceptionType)
+        public static InvocationExpressionSyntax ThrowsExceptionSyntax(ExpressionSyntax expression,
+            string exceptionType,
+            SeparatedSyntaxList<ArgumentSyntax>? additionalArguments = null)
         {
             // Assert.ThrowsException<<ExceptionType>>(() => /* whatever */));
 
@@ -29,20 +29,19 @@ namespace NUnitToMSTest.Rewriter
                                     SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
                                         SyntaxFactory.IdentifierName(exceptionType))))))
                 .WithArgumentList(
-                    SyntaxFactory.ArgumentList(
-                        SyntaxFactory.SingletonSeparatedList(
-                            SyntaxFactory.Argument(expression)))
-                );
+                    BuildArgumentList(expression, additionalArguments));
         }
+
 
         /// <summary>
         /// Syntax for <c><![CDATA[Assert.InstanceOfType(Assert.ThrowsException<Exception>(expression, typeof(exceptionType))]]></c>.
         /// </summary>
         /// <param name="expression"></param>
         /// <param name="exceptionType"></param>
+        /// <param name="additionalArguments"></param>
         /// <returns></returns>
         public static InvocationExpressionSyntax ThrowsExceptionInstanceOfSyntax(ExpressionSyntax expression,
-            string exceptionType)
+            string exceptionType, SeparatedSyntaxList<ArgumentSyntax>? additionalArguments = null)
         {
             return SyntaxFactory.InvocationExpression(
                     SyntaxFactory.MemberAccessExpression(
@@ -66,16 +65,33 @@ namespace NUnitToMSTest.Rewriter
                                                             SyntaxFactory
                                                                 .SingletonSeparatedList<TypeSyntax>(
                                                                     SyntaxFactory.IdentifierName("Exception"))))))
-                                        .WithArgumentList(
-                                            SyntaxFactory.ArgumentList(
-                                                SyntaxFactory.SingletonSeparatedList(
-                                                    SyntaxFactory.Argument(expression)))
-                                        )),
+                                        .WithArgumentList(BuildArgumentList(expression, additionalArguments))),
                                 SyntaxFactory.Token(SyntaxKind.CommaToken),
                                 SyntaxFactory.Argument(
                                     SyntaxFactory.TypeOfExpression(
                                         SyntaxFactory.IdentifierName(exceptionType)))
                             })));
+        }
+
+        private static ArgumentListSyntax BuildArgumentList(ExpressionSyntax expression,
+            SeparatedSyntaxList<ArgumentSyntax>? additionalArguments)
+        {
+            ArgumentListSyntax argumentList;
+            if (additionalArguments.HasValue && additionalArguments.Value.Any())
+            {
+                var args = new SeparatedSyntaxList<ArgumentSyntax>();
+                args = args.Add(SyntaxFactory.Argument(expression));
+                args = args.AddRange(additionalArguments.Value);
+                argumentList = SyntaxFactory.ArgumentList(args);
+            }
+            else
+            {
+                argumentList = SyntaxFactory.ArgumentList(
+                        SyntaxFactory.SingletonSeparatedList(
+                            SyntaxFactory.Argument(expression)));
+            }
+
+            return argumentList;
         }
     }
 }
