@@ -1,0 +1,59 @@
+
+Assert. -- InstanceOf ---
+
+	Don't need external support of AssertEx.ThrowsInstanceOf<...>, if:
+
+	Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /* whatever */), typeof(<ExceptionType>));
+
+
+Assert.That(() => /*whatever*/, Throws.<whatever>.With.Message.Contains("the message"));
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    (Variant, but seldom: Assert.That(() => /*whatever*/, Throws.Exception.Message.Contains("the message").And.InstanceOf<ArgumentException>());)
+
+    This is rather common in some unit tests.
+    Can be manually handled by:
+
+            StringAssert.Contains(Assert.ThrowsException<whatver>(() => /*whatever*/).Message, "is not attributed by");
+
+    Variant, but seldom:
+    Assert.That(() => /*whatever*/, Throws.<whatever>.With.Message.StartsWith("the message"));
+
+            StringAssert.StartSwith(Assert.ThrowsException<whatver>(() => /*whatever*/).Message, "is not attributed by");
+
+    Variant, but seldom:
+    Assert.That(() => /*whatever*/, Throws.<whatever>.With.Message.Match("pattern"));
+
+            StringAssert.Matches(Assert.ThrowsException<whatver>(() => /*whatever*/).Message, new Regex("pattern"));
+
+ Assert.That(actual.ToList(), Is.EquivalentTo(expected.ToList()).Using(new MyComparer()));
+ Assert.That(actual, Is.EqualTo(expected).Using(new MyComparer()));
+
+    CollectionAssert.*() does not support using a custom comparer.
+    Assert.*Equal() does not support using a custom comparer.
+
+Assert.That(() => result, Is.Not.Null);
+Assert.That(() => result.Foo, Is.EqualTo(options.Foo));
+Assert.That(() => result.Foo, Is.Empty);
+Assert.That(() => result.Foo, Is.Empty);
+Assert.That(() => result, Is.Not.Null.Or.Empty, "dldldl");
+
+    Could all be converted to simple "Assert.AreEqual", "Assert.IsEmpty", etc.
+    because the expression is just a value.
+
+Assert.That(() => /*whatever*/, Throws.InnerException.InstanceOf<DirectoryNotFoundException>());
+Assert.That(() => /*whatever*/, Throws.InnerException.TypeOf<DirectoryNotFoundException>());
+
+    Can be manually handled by:
+
+            Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException, typeof(DirectoryNotFoundException));
+
+            Assert.AreEqual(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException?.GetType(), typeof(DirectoryNotFoundException));
+
+Assert.That(() => /*whatever*/, Throws.InstanceOf<<argex>>().With.Property("ParamName").EqualTo("thename"));
+Assert.That(() => /*whatever*/, Throws.ArgumentNullException.With.Property(nameof(ArgumentNullException.ParamName)).EqualTo("thename"));
+
+    Can be manually handled by:
+
+            Assert.AreEqual(Assert.ThrowsException<whatver>(() => /*whatever*/).ParamName, "thename");
+

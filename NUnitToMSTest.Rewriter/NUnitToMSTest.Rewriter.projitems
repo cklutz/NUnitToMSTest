@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>e72e1d1a-749d-41f6-929c-cebadaa82442</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>NUnitToMSTest.Rewriter</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)DiagnosticsDescriptors.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)NUnitToMSTestRewriter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SyntaxExtensions.cs" />
+  </ItemGroup>
+</Project>
