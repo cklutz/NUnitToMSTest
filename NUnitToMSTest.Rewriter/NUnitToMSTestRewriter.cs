@@ -227,58 +227,12 @@ namespace NUnitToMSTest.Rewriter
                         if (TryGetExceptionFromThrowsStaticHelper(secondArgument, out var exceptionType) ||
                             TryGetExceptionFromThrowsTypeOf(secondArgument, out exceptionType))
                         {
-                            // Assert.ThrowsException<<ExceptionType>>(() => /* whatever */));
-
-                            node = SyntaxFactory.InvocationExpression(
-                                    SyntaxFactory.MemberAccessExpression(
-                                        SyntaxKind.SimpleMemberAccessExpression,
-                                        SyntaxFactory.IdentifierName("Assert"),
-                                        SyntaxFactory.GenericName(SyntaxFactory.Identifier("ThrowsException"))
-                                            .WithTypeArgumentList(
-                                                SyntaxFactory.TypeArgumentList(
-                                                    SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
-                                                        SyntaxFactory.IdentifierName(exceptionType))))))
-                                .WithArgumentList(
-                                    SyntaxFactory.ArgumentList(
-                                        SyntaxFactory.SingletonSeparatedList(firstArgument))
-                                ).WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                            node = MSTestSyntaxFactory.ThrowsExceptionSyntax(firstArgument.Expression, exceptionType)
+                                .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
                         }
                         else if (TryGetExceptionFromThrowsInstanceOf(secondArgument, out exceptionType))
                         {
-                            // Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /* whatever */), typeof(<ExceptionType>));
-
-                            node = SyntaxFactory.InvocationExpression(
-                                    SyntaxFactory.MemberAccessExpression(
-                                        SyntaxKind.SimpleMemberAccessExpression,
-                                        SyntaxFactory.IdentifierName("Assert"),
-                                        SyntaxFactory.IdentifierName("InstanceOfType")))
-                                .WithArgumentList(
-                                    SyntaxFactory.ArgumentList(
-                                        SyntaxFactory.SeparatedList<ArgumentSyntax>(
-                                            new SyntaxNodeOrToken[]
-                                            {
-                                                SyntaxFactory.Argument(
-                                                    SyntaxFactory.InvocationExpression(
-                                                            SyntaxFactory.MemberAccessExpression(
-                                                                SyntaxKind.SimpleMemberAccessExpression,
-                                                                SyntaxFactory.IdentifierName("Assert"),
-                                                                SyntaxFactory.GenericName(
-                                                                        SyntaxFactory.Identifier("ThrowsException"))
-                                                                    .WithTypeArgumentList(
-                                                                        SyntaxFactory.TypeArgumentList(
-                                                                            SyntaxFactory
-                                                                                .SingletonSeparatedList<TypeSyntax>(
-                                                                                    SyntaxFactory.IdentifierName(
-                                                                                        "Exception"))))))
-                                                        .WithArgumentList(
-                                                            SyntaxFactory.ArgumentList(
-                                                                SyntaxFactory.SingletonSeparatedList(firstArgument))
-                                                        )),
-                                                SyntaxFactory.Token(SyntaxKind.CommaToken),
-                                                SyntaxFactory.Argument(
-                                                    SyntaxFactory.TypeOfExpression(
-                                                        SyntaxFactory.IdentifierName(exceptionType)))
-                                            })))
+                            node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression, exceptionType)
                                 .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
                         }
                         else if (HasBooleanResult(firstArgument.Expression, m_semanticModel))

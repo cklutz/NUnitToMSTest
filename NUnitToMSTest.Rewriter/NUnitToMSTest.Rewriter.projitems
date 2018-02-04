@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)DiagnosticsDescriptors.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MSTestSyntaxExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)NUnitToMSTestRewriter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SyntaxExtensions.cs" />
   </ItemGroup>
