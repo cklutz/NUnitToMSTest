@@ -18,6 +18,7 @@ public class FooTests
     void Test()
     {
         Assert.That(() => Dummy(), Throws.InstanceOf<OutOfMemoryException>().And.InnerException.Not.Null);
+        Assert.That(() => Dummy(), Throws.Exception.Message.Contains(""the message"").And.InstanceOf<ArgumentException>());
     }
 }
 ";
@@ -29,6 +30,7 @@ public class FooTests
     void Test()
     {
         Assert.That(() => Dummy(), Throws.InstanceOf<OutOfMemoryException>().And.InnerException.Not.Null);
+        Assert.That(() => Dummy(), Throws.Exception.Message.Contains(""the message"").And.InstanceOf<ArgumentException>());
     }
 }
 ";
@@ -52,13 +54,19 @@ public class FooTests
     void Test()
     {
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Contains(""the message""));
+
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.StartsWith(""the message""));
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.StartWith(""the message""));
+
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EndsWith(""the message""));
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EndWith(""the message""));
+
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EqualTo(""the message""));
+
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Match(""the message""));
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Matches(""the message""));
+
+        Assert.That(() => Dummy(), Throws.Exception.Message.Contains(""the message""));
     }
 }
 ";
@@ -77,6 +85,7 @@ public class FooTests
         Assert.AreEqual(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
         StringAssert.Matches(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,new System.Text.RegularExpressions.Regex(""the message""));
         StringAssert.Matches(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,new System.Text.RegularExpressions.Regex(""the message""));
+        StringAssert.Contains(Assert.ThrowsException<Exception>(() => Dummy()).Message,""the message"");
     }
 }
 ";
@@ -179,6 +188,10 @@ public class FooTests
     }
 }
 ";
+
+            
+            //Assert.ThrowsException<OutOfMemoryException>(() => Dummy());
+            //Assert.ThrowsException<OutOfMemoryException>(() => Dummy());
             const string expected = @"
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 public class FooTests

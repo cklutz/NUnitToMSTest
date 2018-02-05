@@ -53,6 +53,7 @@ namespace UnitTestSample
         {
             Assert.That(() => { int i = 0; i++; }, Throws.ArgumentNullException, "message {0}", 1234);
             Assert.That(() => Dummy(), Throws.ArgumentNullException);
+            Assert.That(() => Dummy(), Throws.ArgumentNullException);
             Assert.That(Dummy, Throws.ArgumentNullException);
             Assert.That(() => Dummy(), Throws.InstanceOf<OutOfMemoryException>());
             Assert.That(() => Dummy(), Throws.TypeOf<OutOfMemoryException>());

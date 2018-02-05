@@ -39,8 +39,8 @@ namespace NUnitToMSTest.Rewriter
             m_rewriteAsserts = rewriteAsserts;
 
             m_namespaceMsTest =
-                (QualifiedNameSyntax) SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
-            m_namespaceNUnit = (QualifiedNameSyntax) SyntaxFactory.ParseName("NUnit.Framework");
+                (QualifiedNameSyntax)SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
+            m_namespaceNUnit = (QualifiedNameSyntax)SyntaxFactory.ParseName("NUnit.Framework");
         }
 
         public override SyntaxNode VisitUsingDirective(UsingDirectiveSyntax node)
@@ -58,7 +58,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            node = (MethodDeclarationSyntax) base.VisitMethodDeclaration(node);
+            node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node);
 
             try
             {
@@ -89,7 +89,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitAttribute(AttributeSyntax node)
         {
-            node = (AttributeSyntax) base.VisitAttribute(node);
+            node = (AttributeSyntax)base.VisitAttribute(node);
             return HandleAttribute(node);
         }
 
@@ -156,22 +156,22 @@ namespace NUnitToMSTest.Rewriter
                     Changed = true;
                     break;
                 default:
-                {
-                    if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
                     {
-                        // Replace (potential) unqualified name with qualified name.
-                        // Otherwise, an attribute whose unqualified name is accidentally the same
-                        // as that of some other, unrelated, attribute could semantically change (since we
-                        // replace the "using NUnit.Framework" with "using <MSTest>").
-                        var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
-                        m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
-                            node.ToFullString()));
-                        node = node.WithName(fullQualifiedName);
-                        Changed = true;
-                    }
+                        if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
+                        {
+                            // Replace (potential) unqualified name with qualified name.
+                            // Otherwise, an attribute whose unqualified name is accidentally the same
+                            // as that of some other, unrelated, attribute could semantically change (since we
+                            // replace the "using NUnit.Framework" with "using <MSTest>").
+                            var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
+                            m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
+                                node.ToFullString()));
+                            node = node.WithName(fullQualifiedName);
+                            Changed = true;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
             }
 
             return node;
@@ -224,8 +224,6 @@ namespace NUnitToMSTest.Rewriter
 
         private InvocationExpressionSyntax HandleInvocationExpression(InvocationExpressionSyntax node)
         {
-            //Console.WriteLine("====> " + node + " <=====");
-
             var info = m_semanticModel.GetSymbolInfo(node);
 
             if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()) &&
@@ -251,11 +249,9 @@ namespace NUnitToMSTest.Rewriter
                         remainingArguments = remainingArguments.AddRange(node.ArgumentList.Arguments.Skip(2));
 
                         var details = new ExceptionSyntaxDetails();
-                        if ((TryGetExceptionFromThrowsStaticHelper(secondArgument, details) ||
-                             TryGetExceptionDetails(secondArgument, "TypeOf", details)))
+                        if (TryGetExceptionFromThrowsStaticHelper(secondArgument, details) ||
+                            TryGetExceptionDetails(secondArgument, "TypeOf", details))
                         {
-                            Console.WriteLine(details);
-
                             if (!details.Inconclusive)
                             {
                                 node = MSTestSyntaxFactory.ThrowsExceptionSyntax(firstArgument.Expression,
@@ -294,7 +290,7 @@ namespace NUnitToMSTest.Rewriter
         }
 
 
-        private static bool TryGetExceptionFromThrowsStaticHelper(ArgumentSyntax node, ExceptionSyntaxDetails details)
+        private bool TryGetExceptionFromThrowsStaticHelper(SyntaxNode node, ExceptionSyntaxDetails details)
         {
             // Handles Assert.That(() => Dummy(), Throws.ArgumentNullException);
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -302,26 +298,61 @@ namespace NUnitToMSTest.Rewriter
             if (node == null)
                 throw new ArgumentNullException(nameof(node));
 
-            details.TypeName = null;
-            if (node.Expression is MemberAccessExpressionSyntax memberAccess &&
-                memberAccess.Expression.EqualsString("Throws"))
-            {
-                details.TypeName = memberAccess.Name?.ToString();
+            CollectMatchDetails(node, details, staticHelperMode: true);
+
+            if (TryGetExceptionFromThrowsStaticHelperSingleNode(node, details))
                 return true;
+
+            foreach (var checkNode in node.ChildNodes())
+            {
+                if (TryGetExceptionFromThrowsStaticHelper(checkNode, details))
+                    return true;
             }
 
+            details.Reset();
+            return false;
+        }
+
+        private bool TryGetExceptionFromThrowsStaticHelperSingleNode(SyntaxNode node, ExceptionSyntaxDetails details)
+        {
+            if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
+            {
+                if (memberAccess.Expression.EqualsString("Throws") &&
+                    !memberAccess.Name.TryGetGenericNameSyntax(out _))
+                {
+                    //
+                    // Manually disambiguate the following cases:
+                    //
+                    //      Assert.That(Foo, Throws.Exception)
+                    //      Assert.That(Foo, Throws.Exception.TypeOf<Something>());
+                    //
+                    // The first one is a candidate for "static helper" the second one is simply a more verbose
+                    // version of the "Throws.TypeOf<>()". Both could have be written like this:
+                    //
+                    //      Assert.That(Foo, Throws.TypeOf<Exception>());
+                    //      Assert.That(Foo, Throws.TypeOf<Something>());
+                    //
+
+                    string parentName = memberAccess.Parent.GetName()?.ToString();
+                    if (parentName != null && (parentName.StartsWith("TypeOf<") || parentName.StartsWith("InstanceOf<")))
+                    {
+                        return false;
+                    }
+
+                    details.TypeName = memberAccess.Name?.ToString();
+                    return true;
+                }
+            }
             return false;
         }
 
 
-        private static bool TryGetExceptionDetails(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
+        private bool TryGetExceptionDetails(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
         {
             if (node == null)
                 throw new ArgumentNullException(nameof(node));
             if (exceptionMethod == null)
                 throw new ArgumentNullException(nameof(exceptionMethod));
-
-            details.TypeName = null;
 
             CollectMatchDetails(node, details);
 
@@ -334,35 +365,99 @@ namespace NUnitToMSTest.Rewriter
                     return true;
             }
 
-            details.TypeName = null;
+            details.Reset();
             return false;
         }
 
-        private static void CollectMatchDetails(SyntaxNode node, ExceptionSyntaxDetails details)
+        private void CollectMatchDetails(SyntaxNode node, ExceptionSyntaxDetails details, bool staticHelperMode = false)
         {
             if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
             {
-                if (memberAccess.Name.EqualsString("With"))
+                string memberName = memberAccess.Name?.ToString();
+                switch (memberName)
                 {
-                    if (details.MatchType != MatchType.None)
-                    {
-                        // Currently, we can handle one one simple "With" condition.
-                        details.SetInconclusive();
-                        return;
-                    }
+                    case "Contains":
+                        details.MatchType = MatchType.Contains;
+                        GetParentInvocationArguments(memberAccess, details, 1);
+                        break;
+                    case "EqualTo":
+                        details.MatchType = MatchType.EqualTo;
+                        GetParentInvocationArguments(memberAccess, details, 1);
+                        break;
+                    case "StartsWith":
+                    case "StartWith":
+                        details.MatchType = MatchType.StartsWith;
+                        GetParentInvocationArguments(memberAccess, details, 1);
+                        break;
+                    case "EndsWith":
+                    case "EndWith":
+                        details.MatchType = MatchType.EndsWith;
+                        GetParentInvocationArguments(memberAccess, details, 1);
+                        break;
+                    case "Matches":
+                    case "Match":
+                        details.MatchType = MatchType.Matches;
+                        GetParentInvocationArguments(memberAccess, details, 1);
+                        break;
 
-                    if (memberAccess.Parent.GetName().EqualsString("Message") &&
-                        memberAccess.Parent?.Parent is MemberAccessExpressionSyntax matchType &&
-                        TryGetMatchDetails(matchType.Parent as InvocationExpressionSyntax, details))
-                    {
-                        details.MatchTarget = "Message";
-                        details.m_inconclusive = false;
-                    }
-                    else
-                    {
-                        details.SetInconclusive();
-                    }
+                    case "Message":
+                        if (details.MatchType != MatchType.None)
+                        {
+                            details.MatchTarget = memberName;
+                        }
+                        else
+                        {
+                            details.SetInconclusive();
+                        }
+
+                        break;
+
+                    case "With":
+                        if (details.MatchTarget == null ||
+                            details.MatchType == MatchType.None)
+                        {
+                            details.SetInconclusive();
+                        }
+
+                        break;
+
+                    default:
+                        if (staticHelperMode)
+                        {
+                            if (memberName != null && !(memberName.EndsWith("Exception")))
+                            {
+                                details.SetInconclusive(memberName);
+                            }
+                        }
+                        else
+                        {
+                            if (memberName != null && !(
+                                    memberName.Equals("Throws") ||
+                                    memberName.StartsWith("TypeOf<") ||
+                                    memberName.StartsWith("InstanceOf<") ||
+                                    memberName.Equals("Exception")))
+                            {
+                                details.SetInconclusive(memberName);
+                            }
+                        }
+
+                        break;
                 }
+            }
+        }
+
+        private static void GetParentInvocationArguments(
+            MemberAccessExpressionSyntax memberAccess, ExceptionSyntaxDetails details,
+            int numArgumentsRequired)
+        {
+            if (memberAccess?.Parent is InvocationExpressionSyntax invocation &&
+                invocation.ArgumentList?.Arguments.Count == numArgumentsRequired)
+            {
+                details.MatchArguments = invocation.ArgumentList;
+            }
+            else
+            {
+                details.SetInconclusive();
             }
         }
 
@@ -393,53 +488,6 @@ namespace NUnitToMSTest.Rewriter
             }
 
             details.TypeName = null;
-            return false;
-        }
-
-        private static bool TryGetMatchDetails(InvocationExpressionSyntax invocation, ExceptionSyntaxDetails details)
-        {
-            if (invocation != null)
-            {
-                if (invocation.GetInvocationName().EqualsString("Contains"))
-                {
-                    details.MatchType = MatchType.Contains;
-                    details.MatchArguments = invocation.ArgumentList;
-                    return true;
-                }
-
-                if (invocation.GetInvocationName().EqualsString("EqualTo"))
-                {
-                    details.MatchType = MatchType.EqualTo;
-                    details.MatchArguments = invocation.ArgumentList;
-                    return true;
-                }
-
-                if (invocation.GetInvocationName().EqualsString("Matches") ||
-                    invocation.GetInvocationName().EqualsString("Match"))
-                {
-                    details.MatchType = MatchType.Matches;
-                    details.MatchArguments = invocation.ArgumentList;
-                    return true;
-                }
-
-                if (invocation.GetInvocationName().EqualsString("StartsWith") ||
-                    invocation.GetInvocationName().EqualsString("StartWith"))
-                {
-                    details.MatchType = MatchType.StartsWith;
-                    details.MatchArguments = invocation.ArgumentList;
-                    return true;
-                }
-
-                if (invocation.GetInvocationName().EqualsString("EndsWith") ||
-                    invocation.GetInvocationName().EqualsString("EndWith"))
-                {
-                    details.MatchType = MatchType.EndsWith;
-                    details.MatchArguments = invocation.ArgumentList;
-                    return true;
-                }
-            }
-
-            details.SetInconclusive();
             return false;
         }
     }
