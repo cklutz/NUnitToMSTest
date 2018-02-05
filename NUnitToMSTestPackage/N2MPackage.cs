@@ -8,11 +8,30 @@ using IServiceProvider = System.IServiceProvider;
 
 namespace NUnitToMSTestPackage
 {
+    public class Options : IOptions
+    {
+        private static Options s_instance;
+
+        internal static void Initialize(N2MPackage package)
+        {
+            s_instance = new Options();
+
+            var storage = (OptionPageGrid)package.GetDialogPage(typeof(OptionPageGrid));
+            s_instance.TransformAsserts = storage.TransformAsserts;
+
+        }
+
+        public static IOptions Instance => s_instance;
+
+        public bool TransformAsserts { get; private set; }
+    }
+
     [PackageRegistration(UseManagedResourcesOnly = true)]
     [InstalledProductRegistration("#110", "#112", "1.0", IconResourceID = 400)] // Info on this package for Help/About
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(PackageGuidString)]
     [ProvideAutoLoad(VSConstants.UICONTEXT.NoSolution_string)]
+    [ProvideOptionPage(typeof(OptionPageGrid), "NUnit To MSTest", "NUnit To MSTest", 0, 0, true)]
     public sealed class N2MPackage : Package
     {
         public const string PackageGuidString = "0b2c9d6e-4940-49e0-8c7d-6e75efc2f552";
@@ -31,8 +50,9 @@ namespace NUnitToMSTestPackage
         {
             base.Initialize();
 
+            Options.Initialize(this);
             m_errorListProvider = new ErrorListProvider(this);
-            TransformProjectFilesCommand.Initialize(this, m_errorListProvider);
+            TransformProjectFilesCommand.Initialize(this, m_errorListProvider, Options.Instance);
         }
 
         protected override void Dispose(bool disposing)

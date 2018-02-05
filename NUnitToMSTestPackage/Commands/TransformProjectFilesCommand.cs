@@ -25,11 +25,13 @@ namespace NUnitToMSTestPackage.Commands
 
         private readonly Package m_package;
         private readonly ErrorListProvider m_errorListProvider;
+        private readonly IOptions m_options;
 
-        private TransformProjectFilesCommand(Package package, ErrorListProvider errorListProvider)
+        private TransformProjectFilesCommand(Package package, ErrorListProvider errorListProvider, IOptions options)
         {
             m_package = package ?? throw new ArgumentNullException(nameof(package));
             m_errorListProvider = errorListProvider ?? throw new ArgumentNullException(nameof(errorListProvider));
+            m_options = options ?? throw new ArgumentNullException(nameof(options));
 
             if (ServiceProvider.GetService(typeof(IMenuCommandService)) is OleMenuCommandService commandService)
             {
@@ -42,9 +44,9 @@ namespace NUnitToMSTestPackage.Commands
         public static TransformProjectFilesCommand Instance { get; private set; }
         private IServiceProvider ServiceProvider => m_package;
 
-        public static void Initialize(Package package, ErrorListProvider errorListProvider)
+        public static void Initialize(Package package, ErrorListProvider errorListProvider, IOptions options)
         {
-            Instance = new TransformProjectFilesCommand(package, errorListProvider);
+            Instance = new TransformProjectFilesCommand(package, errorListProvider, options);
         }
 
         /// <summary>
@@ -85,7 +87,7 @@ namespace NUnitToMSTestPackage.Commands
 
                             var semanticModel = await document.GetSemanticModelAsync();
                             var tree = await document.GetSyntaxTreeAsync();
-                            var rw = new NUnitToMSTestRewriter(semanticModel);
+                            var rw = new NUnitToMSTestRewriter(semanticModel, m_options.TransformAsserts);
                             var result = rw.Visit(tree.GetRoot());
 
                             if (rw.Changed)

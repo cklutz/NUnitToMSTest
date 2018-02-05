@@ -26,13 +26,15 @@ namespace NUnitToMSTestPackage.Refactorings
             if (!node.Name.ToFullString().Contains("NUnit"))
                 return;
 
+            var options = Options.Instance;
+
             context.RegisterRefactoring(CodeAction.Create(
                 "Convert Tests to MSTest V2", 
                 async c =>
                 {
                     var tree = await document.GetSyntaxTreeAsync(c);
                     var semanticModel = await document.GetSemanticModelAsync(c);
-                    var rw = new NUnitToMSTestRewriter(semanticModel);
+                    var rw = new NUnitToMSTestRewriter(semanticModel, options.TransformAsserts);
                     var result = rw.Visit(tree.GetRoot());
 
                     return document.WithSyntaxRoot(result);
