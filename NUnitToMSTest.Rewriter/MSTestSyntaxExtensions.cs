@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -57,39 +58,55 @@ namespace NUnitToMSTest.Rewriter
                     BuildArgumentList(expression, additionalArguments));
         }
 
+
+        private static InvocationExpressionSyntax AssertOperation(string type, string method)
+        {
+            return SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    SyntaxFactory.IdentifierName(type),
+                    SyntaxFactory.IdentifierName(method)));
+        }
+
         public static InvocationExpressionSyntax ThrowsExceptionWithMatch(
             ExpressionSyntax expression, ExceptionSyntaxDetails details,
             SeparatedSyntaxList<ArgumentSyntax>? additionalArguments = null)
         {
             string type = "StringAssert";
-            string op;
-            var compareArg = details.MatchArguments.Arguments[0];
+            string method;
+            var matchTypeArgument = details.MatchTypeArguments.Arguments[0];
             switch (details.MatchType)
             {
                 case MatchType.Matches:
-                    op = "Matches";
-                    compareArg = SyntaxFactory.Argument(
-                        SyntaxFactory.ObjectCreationExpression(
-                        SyntaxFactory.IdentifierName("System.Text.RegularExpressions.Regex"))
-                        .WithArgumentList(
-                            SyntaxFactory.ArgumentList(
-                            SyntaxFactory.SingletonSeparatedList(details.MatchArguments.Arguments[0])))).NormalizeWhitespace();
+                    method = "Matches";
+                    matchTypeArgument = SyntaxFactory.Argument(
+                        SyntaxExtensions.CreateInstance(typeof(Regex).FullName, 
+                            details.MatchTypeArguments.Arguments[0])).NormalizeWhitespace();
                     break;
                 case MatchType.EqualTo:
                     type = "Assert";
-                    op = "AreEqual";
+                    method = "AreEqual";
                     break;
                 case MatchType.Contains:
-                    op = "Contains";
+                    method = "Contains";
                     break;
                 case MatchType.StartsWith:
-                    op = "StartsWith";
+                    method = "StartsWith";
                     break;
                 case MatchType.EndsWith:
-                    op = "EndsWith";
+                    method = "EndsWith";
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
+            }
+
+            var matchTargetArgument = SyntaxFactory.IdentifierName(details.MatchTarget);
+            switch (details.MatchTarget)
+            {
+                case "Property":
+                    matchTargetArgument = SyntaxFactory.IdentifierName(
+                        details.MatchTargetArguments.Arguments[0].Expression.ToString());
+                    break;
             }
 
             var argumentList = new SeparatedSyntaxList<ArgumentSyntax>();
@@ -98,17 +115,12 @@ namespace NUnitToMSTest.Rewriter
                     SyntaxFactory.MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,
                         ThrowsExceptionNaked(expression, details, additionalArguments),
-                        SyntaxFactory.IdentifierName(details.MatchTarget)
+                        matchTargetArgument
                     )));
-            argumentList = argumentList.Add(compareArg);
+            argumentList = argumentList.Add(matchTypeArgument);
 
-            return SyntaxFactory.InvocationExpression(
-                    SyntaxFactory.MemberAccessExpression(
-                        SyntaxKind.SimpleMemberAccessExpression,
-                        SyntaxFactory.IdentifierName(type),
-                        SyntaxFactory.IdentifierName(op)))
-                .WithArgumentList(
-                    SyntaxFactory.ArgumentList(argumentList));
+            return AssertOperation(type, method)
+                .WithArgumentList(SyntaxFactory.ArgumentList(argumentList));
         }
 
 

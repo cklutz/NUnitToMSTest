@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -287,7 +288,7 @@ namespace NUnitToMSTest.Rewriter
 
             return node;
         }
-        
+
         private bool TryGetExceptionFromThrowsStaticHelper(SyntaxNode node, ExceptionSyntaxDetails details)
         {
             // Handles Assert.That(() => Dummy(), Throws.ArgumentNullException);
@@ -341,6 +342,7 @@ namespace NUnitToMSTest.Rewriter
                     return true;
                 }
             }
+
             return false;
         }
 
@@ -406,26 +408,26 @@ namespace NUnitToMSTest.Rewriter
                 {
                     case "Contains":
                         details.MatchType = MatchType.Contains;
-                        GetParentInvocationArguments(memberAccess, details, 1);
+                        details.MatchTypeArguments = memberAccess.GetParentInvocationArguments(details, 1);
                         break;
                     case "EqualTo":
                         details.MatchType = MatchType.EqualTo;
-                        GetParentInvocationArguments(memberAccess, details, 1);
+                        details.MatchTypeArguments = memberAccess.GetParentInvocationArguments(details, 1);
                         break;
                     case "StartsWith":
                     case "StartWith":
                         details.MatchType = MatchType.StartsWith;
-                        GetParentInvocationArguments(memberAccess, details, 1);
+                        details.MatchTypeArguments = memberAccess.GetParentInvocationArguments(details, 1);
                         break;
                     case "EndsWith":
                     case "EndWith":
                         details.MatchType = MatchType.EndsWith;
-                        GetParentInvocationArguments(memberAccess, details, 1);
+                        details.MatchTypeArguments = memberAccess.GetParentInvocationArguments(details, 1);
                         break;
                     case "Matches":
                     case "Match":
                         details.MatchType = MatchType.Matches;
-                        GetParentInvocationArguments(memberAccess, details, 1);
+                        details.MatchTypeArguments = memberAccess.GetParentInvocationArguments(details, 1);
                         break;
 
                     case "Message":
@@ -435,7 +437,48 @@ namespace NUnitToMSTest.Rewriter
                         }
                         else
                         {
-                            details.SetInconclusive();
+                            details.SetInconclusive(memberName);
+                        }
+
+                        break;
+
+                    case "Property":
+                        if (details.MatchType != MatchType.None)
+                        {
+                            details.MatchTarget = memberName;
+
+                            details.MatchTargetArguments = memberAccess.TransformParentInvocationArguments(details, 1,
+                                (arg, i) =>
+                                {
+                                    // We need to turn 'Property("MemberName")' into '<object>.Membername'.
+                                    // Thus we cannot handle something like 'Property(Func())', because that
+                                    // would require either executing the code to get the actual string value,
+                                    // or use reflection when writing the exception.
+                                    if (arg.Expression is LiteralExpressionSyntax)
+                                    {
+                                        // Remove quotes.
+                                        string str = arg.Expression.ToString().Trim('"');
+                                        if (SyntaxFacts.IsValidIdentifier(str))
+                                        {
+                                            return SyntaxFactory.Argument(SyntaxFactory.IdentifierName(str));
+                                        }
+                                    }
+
+                                    // We can handle one invocation expression and that is "nameof(...)".
+                                    if (arg.Expression is InvocationExpressionSyntax invocation &&
+                                        invocation.Expression.EqualsString("nameof"))
+                                    {
+                                        var n = (QualifiedNameSyntax)SyntaxFactory.ParseName(invocation.ArgumentList.Arguments[0].ToString());
+                                        return SyntaxFactory.Argument(n.Right);
+                                    }
+
+                                    // Something else: give up.
+                                    return null;
+                                });
+                        }
+                        else
+                        {
+                            details.SetInconclusive(memberName);
                         }
 
                         break;
@@ -444,7 +487,7 @@ namespace NUnitToMSTest.Rewriter
                         if (details.MatchTarget == null ||
                             details.MatchType == MatchType.None)
                         {
-                            details.SetInconclusive();
+                            details.SetInconclusive(memberName);
                         }
 
                         break;
@@ -471,21 +514,6 @@ namespace NUnitToMSTest.Rewriter
 
                         break;
                 }
-            }
-        }
-
-        private static void GetParentInvocationArguments(
-            MemberAccessExpressionSyntax memberAccess, ExceptionSyntaxDetails details,
-            int numArgumentsRequired)
-        {
-            if (memberAccess?.Parent is InvocationExpressionSyntax invocation &&
-                invocation.ArgumentList?.Arguments.Count == numArgumentsRequired)
-            {
-                details.MatchArguments = invocation.ArgumentList;
-            }
-            else
-            {
-                details.SetInconclusive();
             }
         }
     }

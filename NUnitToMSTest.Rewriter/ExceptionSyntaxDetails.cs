@@ -10,15 +10,16 @@ namespace NUnitToMSTest.Rewriter
 
         public string TypeName { get; set; }
         public MatchType MatchType { get; set; }
-        public ArgumentListSyntax MatchArguments { get; set; }
+        public ArgumentListSyntax MatchTypeArguments { get; set; }
         public string MatchTarget { get; set; }
+        public ArgumentListSyntax MatchTargetArguments { get; set; }
 
         internal ExceptionSyntaxDetails Reset()
         {
             m_inconclusive = false;
             MatchTarget = null;
             MatchType = MatchType.None;
-            MatchArguments = null;
+            MatchTypeArguments = null;
             return this;
         }
 
@@ -26,13 +27,15 @@ namespace NUnitToMSTest.Rewriter
             [CallerMemberName]string memberName = null, [CallerFilePath]string filePath = null,
             [CallerLineNumber]int lineNumber = 0)
         {
-            //if (!m_inconclusive)
+#if DEBUG
+            if (!m_inconclusive)
             {
                 Console.WriteLine("------------------  Inconclusive --------------------------");
                 Console.WriteLine($"{filePath}({lineNumber}): In '{memberName}' {context}.");
                 Console.WriteLine(Environment.StackTrace);
                 Console.WriteLine("-----------------------------------------------------------");
             }
+#endif
             m_inconclusive = true;
         }
 
@@ -40,7 +43,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override string ToString()
         {
-            return TypeName + ", " + MatchTarget + "." + MatchType + "(" + MatchArguments + ")";
+            return TypeName + ", " + MatchTarget + "." + MatchType + "(" + MatchTypeArguments + ")";
         }
     }
 

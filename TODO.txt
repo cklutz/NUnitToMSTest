@@ -1,9 +1,19 @@
 
+Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
+
+	CollectionAssert.AreEqual(actual.ToList(), expected.ToList(), new MyComparer());
+	
 Assert.That(actual.ToList(), Is.EquivalentTo(expected.ToList()).Using(new MyComparer()));
+
+	CollectionAssert.AreEquivalent() does not support a custom comparer.
+
 Assert.That(actual, Is.EqualTo(expected).Using(new MyComparer()));
 
-    CollectionAssert.*() does not support using a custom comparer.
     Assert.*Equal() does not support using a custom comparer.
+
+	Workaround:
+
+	CollectionAssert.AreEqual(new [] { actual }, new [] { expected }, newe MyComparer());
 
 Assert.That(() => result, Is.Not.Null);
 Assert.That(() => result.Foo, Is.EqualTo(options.Foo));
@@ -22,11 +32,4 @@ Assert.That(() => /*whatever*/, Throws.InnerException.TypeOf<DirectoryNotFoundEx
             Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException, typeof(DirectoryNotFoundException));
 
             Assert.AreEqual(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException?.GetType(), typeof(DirectoryNotFoundException));
-
-Assert.That(() => /*whatever*/, Throws.InstanceOf<<argex>>().With.Property("ParamName").EqualTo("thename"));
-Assert.That(() => /*whatever*/, Throws.ArgumentNullException.With.Property(nameof(ArgumentNullException.ParamName)).EqualTo("thename"));
-
-    Can be manually handled by:
-
-            Assert.AreEqual(Assert.ThrowsException<whatver>(() => /*whatever*/).ParamName, "thename");
 

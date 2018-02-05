@@ -11,6 +11,20 @@ namespace NUnitToMSTest.Rewriter
     {
         private static readonly SyntaxTriviaList s_singleWhitespace = SyntaxFactory.TriviaList(SyntaxFactory.Whitespace(" "));
 
+        public static ExpressionSyntax CreateInstance(string identifierName, params ArgumentSyntax[] arguments)
+        {
+            var result = SyntaxFactory.ObjectCreationExpression(SyntaxFactory.IdentifierName(identifierName));
+
+            if (arguments != null && arguments.Length > 0)
+            {
+                var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                argList = argList.AddRange(arguments);
+                result = result.WithArgumentList(SyntaxFactory.ArgumentList(argList));
+            }
+
+            return result;
+        }
+
         public static bool EqualsString(this ExpressionSyntax expression, string str)
         {
             return expression != null && expression.ToString().Equals(str);
@@ -230,6 +244,65 @@ namespace NUnitToMSTest.Rewriter
             }
 
             return SyntaxTriviaList.Empty;
+        }
+
+        public static ArgumentListSyntax TransformParentInvocationArguments(
+            this MemberAccessExpressionSyntax memberAccess,
+            ExceptionSyntaxDetails details, int numArgumentsRequired,
+            Func<ArgumentSyntax, int, ArgumentSyntax> transform
+            )
+        {
+            if (details == null)
+                throw new ArgumentNullException(nameof(details));
+            if (transform == null)
+                throw new ArgumentNullException(nameof(transform));
+
+            if (memberAccess?.Parent is InvocationExpressionSyntax invocation &&
+                invocation.ArgumentList?.Arguments.Count == numArgumentsRequired)
+            {
+                var result = new SeparatedSyntaxList<ArgumentSyntax>();
+                for (int i = 0; i < invocation.ArgumentList.Arguments.Count; i++)
+                {
+                    var transformed = transform(invocation.ArgumentList.Arguments[i], i);
+                    if (transformed == null)
+                    {
+                        details.SetInconclusive(invocation.ArgumentList.Arguments[i]?.ToString());
+                        return null;
+                    }
+                    result = result.Add(transformed);
+                }
+                return SyntaxFactory.ArgumentList(result);
+            }
+
+            details.SetInconclusive(memberAccess?.ToString());
+            return null;
+        }
+
+        public static ArgumentListSyntax GetParentInvocationArguments(
+            this MemberAccessExpressionSyntax memberAccess,
+            ExceptionSyntaxDetails details, int numArgumentsRequired,
+            Func<ArgumentSyntax, int, bool> check = null)
+        {
+            if (details == null)
+                throw new ArgumentNullException(nameof(details));
+
+            if (memberAccess?.Parent is InvocationExpressionSyntax invocation &&
+                invocation.ArgumentList?.Arguments.Count == numArgumentsRequired)
+            {
+                for (int i = 0; i < invocation.ArgumentList.Arguments.Count; i++)
+                {
+                    if (check != null && !check(invocation.ArgumentList.Arguments[i], i))
+                    {
+                        details.SetInconclusive(invocation.ArgumentList.Arguments[i]?.ToString());
+                        return null;
+                    }
+                }
+
+                return invocation.ArgumentList;
+            }
+
+            details.SetInconclusive(memberAccess?.ToString());
+            return null;
         }
     }
 }

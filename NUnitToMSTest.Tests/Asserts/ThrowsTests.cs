@@ -19,6 +19,7 @@ public class FooTests
     {
         Assert.That(() => Dummy(), Throws.InstanceOf<OutOfMemoryException>().And.InnerException.Not.Null);
         Assert.That(() => Dummy(), Throws.Exception.Message.Contains(""the message"").And.InstanceOf<ArgumentException>());
+        Assert.That(() => Dummy(), Throws.InnerException.TypeOf<ArgumentException>());
     }
 }
 ";
@@ -31,6 +32,47 @@ public class FooTests
     {
         Assert.That(() => Dummy(), Throws.InstanceOf<OutOfMemoryException>().And.InnerException.Not.Null);
         Assert.That(() => Dummy(), Throws.Exception.Message.Contains(""the message"").And.InstanceOf<ArgumentException>());
+        Assert.That(() => Dummy(), Throws.InnerException.TypeOf<ArgumentException>());
+    }
+}
+";
+            TestRefactoringWithAsserts(actual, expected,
+                (result, rw) =>
+                {
+                    Assert.IsTrue(rw.Changed);
+                    Assert.AreEqual(0, rw.Diagnostics.Count());
+                    Assert.AreEqual(expected, result.ToFullString());
+                });
+        }
+
+        [TestMethod]
+        public void TestHandlesWithProperty()
+        {
+            const string actual = @"
+using NUnit.Framework;
+public class FooTests
+{ 
+    string Dummy() { return ""ParamName""; }
+    void Test()
+    {
+        Assert.That(() => Dummy(), Throws.TypeOf<ArgumentException>().With.Property(""ParamName"").Contains(""arg0""));
+        Assert.That(() => Dummy(), Throws.TypeOf<ArgumentException>().With.Property(nameof(ArgumentException.ParamName)).Contains(""arg0""));
+        Assert.That(() => Dummy(), Throws.TypeOf<ArgumentException>().With.Property(Dummy()).Contains(""arg0""));
+        Assert.That(() => Dummy(), Throws.TypeOf<ArgumentException>().With.Property(""It's invalid"").Contains(""arg0""));
+    }
+}
+";
+            const string expected = @"
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+public class FooTests
+{ 
+    string Dummy() { return ""ParamName""; }
+    void Test()
+    {
+        StringAssert.Contains(Assert.ThrowsException<ArgumentException>(() => Dummy()).ParamName,""arg0"");
+        StringAssert.Contains(Assert.ThrowsException<ArgumentException>(() => Dummy()).ParamName,""arg0"");
+        Assert.That(() => Dummy(), Throws.TypeOf<ArgumentException>().With.Property(Dummy()).Contains(""arg0""));
+        Assert.That(() => Dummy(), Throws.TypeOf<ArgumentException>().With.Property(""It's invalid"").Contains(""arg0""));
     }
 }
 ";
@@ -54,18 +96,13 @@ public class FooTests
     void Test()
     {
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Contains(""the message""));
-
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.StartsWith(""the message""));
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.StartWith(""the message""));
-
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EndsWith(""the message""));
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EndWith(""the message""));
-
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EqualTo(""the message""));
-
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Match(""the message""));
         Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Matches(""the message""));
-
         Assert.That(() => Dummy(), Throws.Exception.Message.Contains(""the message""));
     }
 }
