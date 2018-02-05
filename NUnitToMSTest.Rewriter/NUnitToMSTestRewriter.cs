@@ -39,8 +39,8 @@ namespace NUnitToMSTest.Rewriter
             m_rewriteAsserts = rewriteAsserts;
 
             m_namespaceMsTest =
-                (QualifiedNameSyntax)SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
-            m_namespaceNUnit = (QualifiedNameSyntax)SyntaxFactory.ParseName("NUnit.Framework");
+                (QualifiedNameSyntax) SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
+            m_namespaceNUnit = (QualifiedNameSyntax) SyntaxFactory.ParseName("NUnit.Framework");
         }
 
         public override SyntaxNode VisitUsingDirective(UsingDirectiveSyntax node)
@@ -58,7 +58,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node);
+            node = (MethodDeclarationSyntax) base.VisitMethodDeclaration(node);
 
             try
             {
@@ -89,7 +89,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitAttribute(AttributeSyntax node)
         {
-            node = (AttributeSyntax)base.VisitAttribute(node);
+            node = (AttributeSyntax) base.VisitAttribute(node);
             return HandleAttribute(node);
         }
 
@@ -156,22 +156,22 @@ namespace NUnitToMSTest.Rewriter
                     Changed = true;
                     break;
                 default:
+                {
+                    if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
                     {
-                        if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
-                        {
-                            // Replace (potential) unqualified name with qualified name.
-                            // Otherwise, an attribute whose unqualified name is accidentally the same
-                            // as that of some other, unrelated, attribute could semantically change (since we
-                            // replace the "using NUnit.Framework" with "using <MSTest>").
-                            var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
-                            m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
-                                node.ToFullString()));
-                            node = node.WithName(fullQualifiedName);
-                            Changed = true;
-                        }
-
-                        break;
+                        // Replace (potential) unqualified name with qualified name.
+                        // Otherwise, an attribute whose unqualified name is accidentally the same
+                        // as that of some other, unrelated, attribute could semantically change (since we
+                        // replace the "using NUnit.Framework" with "using <MSTest>").
+                        var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
+                        m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
+                            node.ToFullString()));
+                        node = node.WithName(fullQualifiedName);
+                        Changed = true;
                     }
+
+                    break;
+                }
             }
 
             return node;
@@ -215,61 +215,78 @@ namespace NUnitToMSTest.Rewriter
 
             if (m_rewriteAsserts)
             {
-                var info = m_semanticModel.GetSymbolInfo(node);
+                node = HandleInvocationExpression(node);
+            }
 
-                if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()) &&
-                    node.Expression is MemberAccessExpressionSyntax ma)
+
+            return node;
+        }
+
+        private InvocationExpressionSyntax HandleInvocationExpression(InvocationExpressionSyntax node)
+        {
+            //Console.WriteLine("====> " + node + " <=====");
+
+            var info = m_semanticModel.GetSymbolInfo(node);
+
+            if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()) &&
+                node.Expression is MemberAccessExpressionSyntax ma)
+            {
+                if ("That".Equals(ma.Name?.ToString()) && node.ArgumentList?.Arguments.Count > 0)
                 {
-                    if ("That".Equals(ma.Name?.ToString()) && node.ArgumentList?.Arguments.Count > 0)
+                    var firstArgument = node.ArgumentList.Arguments[0];
+
+                    if (node.ArgumentList.Arguments.Count == 1)
                     {
-                        var firstArgument = node.ArgumentList.Arguments[0];
-
-                        if (node.ArgumentList.Arguments.Count == 1)
+                        if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
                         {
-                            if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
-                            {
-                                // A simple ==> Assert.That(<boolean expression>); 
-                                ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
-                                node = node.WithExpression(ma);
-                            }
+                            // A simple ==> Assert.That(<boolean expression>); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+                            node = node.WithExpression(ma);
                         }
-                        else
-                        {
-                            var secondArgument = node.ArgumentList.Arguments[1];
-                            var remainingArguments = new SeparatedSyntaxList<ArgumentSyntax>();
-                            remainingArguments = remainingArguments.AddRange(node.ArgumentList.Arguments.Skip(2));
+                    }
+                    else
+                    {
+                        var secondArgument = node.ArgumentList.Arguments[1];
+                        var remainingArguments = new SeparatedSyntaxList<ArgumentSyntax>();
+                        remainingArguments = remainingArguments.AddRange(node.ArgumentList.Arguments.Skip(2));
 
-                            if (TryGetExceptionFromThrowsStaticHelper(secondArgument, out var exceptionType) ||
-                                TryGetExceptionFromThrowsTypeOf(secondArgument, out exceptionType))
+                        var details = new ExceptionSyntaxDetails();
+                        if ((TryGetExceptionFromThrowsStaticHelper(secondArgument, details) ||
+                             TryGetExceptionDetails(secondArgument, "TypeOf", details)))
+                        {
+                            Console.WriteLine(details);
+
+                            if (!details.Inconclusive)
                             {
                                 node = MSTestSyntaxFactory.ThrowsExceptionSyntax(firstArgument.Expression,
-                                        exceptionType, remainingArguments)
+                                        details, remainingArguments)
                                     .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
-                            }
-                            else if (TryGetExceptionFromThrowsInstanceOf(secondArgument, out exceptionType))
-                            {
-                                node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression,
-                                        exceptionType, remainingArguments)
-                                    .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
-                            }
-                            else if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
-                            {
-                                // A simple ==> Assert.That(<boolean expression>); 
-                                ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
-                                node = node.WithExpression(ma);
                             }
                         }
+                        else if (TryGetExceptionDetails(secondArgument, "InstanceOf", details) &&
+                                 !details.Inconclusive)
+                        {
+                            node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression,
+                                    details, remainingArguments)
+                                .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                        }
+                        else if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
+                        {
+                            // A simple ==> Assert.That(<boolean expression>); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+                            node = node.WithExpression(ma);
+                        }
                     }
-                    else if ("Null".Equals(ma.Name?.ToString()))
-                    {
-                        ma = ma.WithName(SyntaxFactory.IdentifierName("IsNull"));
-                        node = node.WithExpression(ma);
-                    }
-                    else if ("NotNull".Equals(ma.Name?.ToString()))
-                    {
-                        ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
-                        node = node.WithExpression(ma);
-                    }
+                }
+                else if ("Null".Equals(ma.Name?.ToString()))
+                {
+                    ma = ma.WithName(SyntaxFactory.IdentifierName("IsNull"));
+                    node = node.WithExpression(ma);
+                }
+                else if ("NotNull".Equals(ma.Name?.ToString()))
+                {
+                    ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
+                    node = node.WithExpression(ma);
                 }
             }
 
@@ -277,70 +294,152 @@ namespace NUnitToMSTest.Rewriter
         }
 
 
-        private static bool TryGetExceptionFromThrowsStaticHelper(ArgumentSyntax node, out string name)
+        private static bool TryGetExceptionFromThrowsStaticHelper(ArgumentSyntax node, ExceptionSyntaxDetails details)
         {
             // Handles Assert.That(() => Dummy(), Throws.ArgumentNullException);
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-            name = null;
-            if (node.Expression is MemberAccessExpressionSyntax maes &&
-                node.Expression.Kind() == SyntaxKind.SimpleMemberAccessExpression &&
-                "Throws".Equals(maes.Expression?.ToString()))
+            if (node == null)
+                throw new ArgumentNullException(nameof(node));
+
+            details.TypeName = null;
+            if (node.Expression is MemberAccessExpressionSyntax memberAccess &&
+                memberAccess.Expression.EqualsString("Throws"))
             {
-                name = maes.Name?.ToString();
+                details.TypeName = memberAccess.Name?.ToString();
                 return true;
             }
 
             return false;
         }
 
-        private static bool TryGetExceptionFromThrowsTypeOf(ArgumentSyntax node, out string name)
+
+        private static bool TryGetExceptionDetails(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
+        {
+            if (node == null)
+                throw new ArgumentNullException(nameof(node));
+            if (exceptionMethod == null)
+                throw new ArgumentNullException(nameof(exceptionMethod));
+
+            details.TypeName = null;
+
+            CollectMatchDetails(node, details);
+
+            if (TryGetExceptionDetailsFromSingleNode(node, exceptionMethod, details))
+                return true;
+
+            foreach (var checkNode in node.ChildNodes())
+            {
+                if (TryGetExceptionDetails(checkNode, exceptionMethod, details))
+                    return true;
+            }
+
+            details.TypeName = null;
+            return false;
+        }
+
+        private static void CollectMatchDetails(SyntaxNode node, ExceptionSyntaxDetails details)
+        {
+            if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
+            {
+                if (memberAccess.Name.EqualsString("With"))
+                {
+                    if (details.MatchType != MatchType.None)
+                    {
+                        // Currently, we can handle one one simple "With" condition.
+                        details.SetInconclusive();
+                        return;
+                    }
+
+                    if (memberAccess.Parent.GetName().EqualsString("Message") &&
+                        memberAccess.Parent?.Parent is MemberAccessExpressionSyntax matchType &&
+                        TryGetMatchDetails(matchType.Parent as InvocationExpressionSyntax, details))
+                    {
+                        details.MatchTarget = "Message";
+                        details.m_inconclusive = false;
+                    }
+                    else
+                    {
+                        details.SetInconclusive();
+                    }
+                }
+            }
+        }
+
+        private static bool TryGetExceptionDetailsFromSingleNode(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
         {
             // Handles Assert.That(() => Dummy(), Throws.TypeOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
             // Handles Assert.That(() => Dummy(), Throws.Exception.TypeOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-            name = null;
-
-            if (node.Expression is InvocationExpressionSyntax ies &&
-                node.Expression.Kind() == SyntaxKind.InvocationExpression &&
-                ies.Expression is MemberAccessExpressionSyntax sss &&
-                ("Throws".Equals(sss.Expression?.ToString()) ||
-                 "Throws.Exception".Equals(sss.Expression?.ToString())) &&
-                sss.Name is GenericNameSyntax gns &&
-                "TypeOf".Equals(gns.Identifier.ToString()) &&
-                gns.TypeArgumentList?.Arguments.Count == 1)
-            {
-                name = gns.TypeArgumentList.Arguments[0].ToString();
-                return true;
-            }
-
-            return false;
-        }
-
-        private static bool TryGetExceptionFromThrowsInstanceOf(ArgumentSyntax node, out string name)
-        {
             // Handles Assert.That(() => Dummy(), Throws.InstanceOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
             // Handles Assert.That(() => Dummy(), Throws.Exception.InstanceOf<ArgumentNullException>());
             //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-            name = null;
-
-            if (node.Expression is InvocationExpressionSyntax ies &&
-                node.Expression.Kind() == SyntaxKind.InvocationExpression &&
-                ies.Expression is MemberAccessExpressionSyntax sss &&
-                ("Throws".Equals(sss.Expression?.ToString()) ||
-                 "Throws.Exception".Equals(sss.Expression?.ToString())) &&
-                sss.Name is GenericNameSyntax gns &&
-                "InstanceOf".Equals(gns.Identifier.ToString()) &&
-                gns.TypeArgumentList?.Arguments.Count == 1)
+            if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
             {
-                name = gns.TypeArgumentList.Arguments[0].ToString();
-                return true;
+                if (memberAccess.Expression.EqualsString("Throws") ||
+                    memberAccess.Expression.EqualsString("Throws.Exception"))
+                {
+                    if (memberAccess.Name.TryGetGenericNameSyntax(out var genericName) &&
+                        exceptionMethod.Equals(genericName.Identifier.ToString()) &&
+                        genericName.NumberOfArguments() == 1)
+                    {
+                        details.TypeName = genericName.TypeArgumentList.Arguments[0].ToString();
+                        return true;
+                    }
+                }
             }
 
+            details.TypeName = null;
+            return false;
+        }
+
+        private static bool TryGetMatchDetails(InvocationExpressionSyntax invocation, ExceptionSyntaxDetails details)
+        {
+            if (invocation != null)
+            {
+                if (invocation.GetInvocationName().EqualsString("Contains"))
+                {
+                    details.MatchType = MatchType.Contains;
+                    details.MatchArguments = invocation.ArgumentList;
+                    return true;
+                }
+
+                if (invocation.GetInvocationName().EqualsString("EqualTo"))
+                {
+                    details.MatchType = MatchType.EqualTo;
+                    details.MatchArguments = invocation.ArgumentList;
+                    return true;
+                }
+
+                if (invocation.GetInvocationName().EqualsString("Matches") ||
+                    invocation.GetInvocationName().EqualsString("Match"))
+                {
+                    details.MatchType = MatchType.Matches;
+                    details.MatchArguments = invocation.ArgumentList;
+                    return true;
+                }
+
+                if (invocation.GetInvocationName().EqualsString("StartsWith") ||
+                    invocation.GetInvocationName().EqualsString("StartWith"))
+                {
+                    details.MatchType = MatchType.StartsWith;
+                    details.MatchArguments = invocation.ArgumentList;
+                    return true;
+                }
+
+                if (invocation.GetInvocationName().EqualsString("EndsWith") ||
+                    invocation.GetInvocationName().EqualsString("EndWith"))
+                {
+                    details.MatchType = MatchType.EndsWith;
+                    details.MatchArguments = invocation.ArgumentList;
+                    return true;
+                }
+            }
+
+            details.SetInconclusive();
             return false;
         }
     }

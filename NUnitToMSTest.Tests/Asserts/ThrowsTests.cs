@@ -42,6 +42,54 @@ public class FooTests
         }
 
         [TestMethod]
+        public void TestHandlesWithMessage()
+        {
+            const string actual = @"
+using NUnit.Framework;
+public class FooTests
+{ 
+    void Dummy() { }
+    void Test()
+    {
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Contains(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.StartsWith(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.StartWith(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EndsWith(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EndWith(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.EqualTo(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Match(""the message""));
+        Assert.That(() => Dummy(), Throws.TypeOf<InvalidOperationException>().With.Message.Matches(""the message""));
+    }
+}
+";
+            const string expected = @"
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+public class FooTests
+{ 
+    void Dummy() { }
+    void Test()
+    {
+        StringAssert.Contains(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
+        StringAssert.StartsWith(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
+        StringAssert.StartsWith(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
+        StringAssert.EndsWith(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
+        StringAssert.EndsWith(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
+        Assert.AreEqual(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,""the message"");
+        StringAssert.Matches(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,new System.Text.RegularExpressions.Regex(""the message""));
+        StringAssert.Matches(Assert.ThrowsException<InvalidOperationException>(() => Dummy()).Message,new System.Text.RegularExpressions.Regex(""the message""));
+    }
+}
+";
+            TestRefactoringWithAsserts(actual, expected,
+                (result, rw) =>
+                {
+                    Assert.IsTrue(rw.Changed);
+                    Assert.AreEqual(0, rw.Diagnostics.Count());
+                    Assert.AreEqual(expected, result.ToFullString());
+                });
+        }
+
+        [TestMethod]
         public void TestThrowsMoreArgs()
         {
             const string actual = @"

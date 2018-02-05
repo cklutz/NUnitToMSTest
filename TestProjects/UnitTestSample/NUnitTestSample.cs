@@ -59,7 +59,6 @@ namespace UnitTestSample
             Assert.That(() => Dummy(), Throws.Exception.TypeOf<OutOfMemoryException>());
 
             Assert.That(1.Foo(), "dkdkdkdk");
-
         }
 
         private void Dummy() {}

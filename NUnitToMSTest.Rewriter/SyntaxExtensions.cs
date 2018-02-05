@@ -11,6 +11,76 @@ namespace NUnitToMSTest.Rewriter
     {
         private static readonly SyntaxTriviaList s_singleWhitespace = SyntaxFactory.TriviaList(SyntaxFactory.Whitespace(" "));
 
+        public static bool EqualsString(this ExpressionSyntax expression, string str)
+        {
+            return expression != null && expression.ToString().Equals(str);
+        }
+
+        public static NameSyntax GetName(this SyntaxNode node)
+        {
+            if (node is MemberAccessExpressionSyntax memberAccess)
+            {
+                return memberAccess.Name;
+            }
+            return null;
+        }
+
+        public static NameSyntax GetInvocationName(this InvocationExpressionSyntax node)
+        {
+            if (node?.Expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                return memberAccess.Name;
+            }
+
+            return null;
+        }
+
+        public static ExpressionSyntax GetExpression(this SyntaxNode node)
+        {
+            if (node is MemberAccessExpressionSyntax memberAccess)
+                return memberAccess.Expression;
+            if (node is InvocationExpressionSyntax invocation)
+                return invocation.Expression;
+            if (node is ArgumentSyntax argument)
+                return argument.Expression;
+
+            return null;
+        }
+
+        public static bool TryGetGenericNameSyntax(this SimpleNameSyntax name, out GenericNameSyntax genericName)
+        {
+            if (name is GenericNameSyntax gcn)
+            {
+                genericName = gcn;
+                return true;
+            }
+
+            genericName = null;
+            return false;
+        }
+
+        public static int NumberOfArguments(this GenericNameSyntax genericName)
+        {
+            return genericName.TypeArgumentList?.Arguments.Count ?? 0;
+        }
+
+        public static string GetGenericNameIdentifier(this ExpressionSyntax expression, int numberGenericArgumentsConstraint = 0)
+        {
+            if (expression is MemberAccessExpressionSyntax memberAccess &&
+                memberAccess.Name is GenericNameSyntax genericName)
+            {
+                if (numberGenericArgumentsConstraint > 0)
+                {
+                    if (genericName.TypeArgumentList?.Arguments.Count != numberGenericArgumentsConstraint)
+                        return null;
+                }
+
+                return genericName.Identifier.ToString();
+            }
+
+            return null;
+        }
+
         public static SyntaxKind GetParentKind(this AttributeSyntax node)
         {
             if (node.Parent.Kind() == SyntaxKind.AttributeList)
@@ -83,7 +153,8 @@ namespace NUnitToMSTest.Rewriter
             return node;
         }
 
-        public static AttributeSyntax WithoutArgumentList(this AttributeSyntax node, List<Diagnostic> diagnostics = null, Location location = null,
+        public static AttributeSyntax WithoutArgumentList(
+            this AttributeSyntax node, List<Diagnostic> diagnostics = null, Location location = null,
             params string[] ignore)
         {
             if (node.ArgumentList?.Arguments.Count > 0)
