@@ -218,7 +218,6 @@ namespace NUnitToMSTest.Rewriter
                 node = HandleInvocationExpression(node);
             }
 
-
             return node;
         }
 
@@ -288,8 +287,7 @@ namespace NUnitToMSTest.Rewriter
 
             return node;
         }
-
-
+        
         private bool TryGetExceptionFromThrowsStaticHelper(SyntaxNode node, ExceptionSyntaxDetails details)
         {
             // Handles Assert.That(() => Dummy(), Throws.ArgumentNullException);
@@ -346,9 +344,17 @@ namespace NUnitToMSTest.Rewriter
             return false;
         }
 
-
         private bool TryGetExceptionDetails(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
         {
+            // Handles Assert.That(() => Dummy(), Throws.TypeOf<ArgumentNullException>());
+            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            // Handles Assert.That(() => Dummy(), Throws.Exception.TypeOf<ArgumentNullException>());
+            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            // Handles Assert.That(() => Dummy(), Throws.InstanceOf<ArgumentNullException>());
+            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            // Handles Assert.That(() => Dummy(), Throws.Exception.InstanceOf<ArgumentNullException>());
+            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
             if (node == null)
                 throw new ArgumentNullException(nameof(node));
             if (exceptionMethod == null)
@@ -368,6 +374,28 @@ namespace NUnitToMSTest.Rewriter
             details.Reset();
             return false;
         }
+
+        private static bool TryGetExceptionDetailsFromSingleNode(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
+        {
+            if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
+            {
+                if (memberAccess.Expression.EqualsString("Throws") ||
+                    memberAccess.Expression.EqualsString("Throws.Exception"))
+                {
+                    if (memberAccess.Name.TryGetGenericNameSyntax(out var genericName) &&
+                        exceptionMethod.Equals(genericName.Identifier.ToString()) &&
+                        genericName.NumberOfArguments() == 1)
+                    {
+                        details.TypeName = genericName.TypeArgumentList.Arguments[0].ToString();
+                        return true;
+                    }
+                }
+            }
+
+            details.TypeName = null;
+            return false;
+        }
+
 
         private void CollectMatchDetails(SyntaxNode node, ExceptionSyntaxDetails details, bool staticHelperMode = false)
         {
@@ -459,36 +487,6 @@ namespace NUnitToMSTest.Rewriter
             {
                 details.SetInconclusive();
             }
-        }
-
-        private static bool TryGetExceptionDetailsFromSingleNode(SyntaxNode node, string exceptionMethod, ExceptionSyntaxDetails details)
-        {
-            // Handles Assert.That(() => Dummy(), Throws.TypeOf<ArgumentNullException>());
-            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            // Handles Assert.That(() => Dummy(), Throws.Exception.TypeOf<ArgumentNullException>());
-            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            // Handles Assert.That(() => Dummy(), Throws.InstanceOf<ArgumentNullException>());
-            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            // Handles Assert.That(() => Dummy(), Throws.Exception.InstanceOf<ArgumentNullException>());
-            //                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-            if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
-            {
-                if (memberAccess.Expression.EqualsString("Throws") ||
-                    memberAccess.Expression.EqualsString("Throws.Exception"))
-                {
-                    if (memberAccess.Name.TryGetGenericNameSyntax(out var genericName) &&
-                        exceptionMethod.Equals(genericName.Identifier.ToString()) &&
-                        genericName.NumberOfArguments() == 1)
-                    {
-                        details.TypeName = genericName.TypeArgumentList.Arguments[0].ToString();
-                        return true;
-                    }
-                }
-            }
-
-            details.TypeName = null;
-            return false;
         }
     }
 }
