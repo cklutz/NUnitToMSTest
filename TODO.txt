@@ -1,4 +1,25 @@
 
+Assert.Less(a1, a2);
+Assert.LessOrEqual(a1, a2);
+Assert.Greater(a1, a2);
+Assert.GreaterOrEqual(a1, a2);
+
+	Assert.IsTrue(a1 < a2)
+	Assert.IsTrue(a1 <= a2)
+	Assert.IsTrue(a1 > a2)
+	Assert.IsTrue(a1 >= a2)
+
+[TestDataSource("name")]
+
+		[DynamicData(nameof(BytePoolInstances), DynamicDataSourceType.Method)]
+		[DynamicData(nameof(BytePoolInstances), DynamicDataSourceType.Property)]
+
+[ClassInitialize]
+[ClassCleanup]
+
+		Methods must be "static".
+
+
 Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
 
 	CollectionAssert.AreEqual(actual.ToList(), expected.ToList(), new MyComparer());
@@ -32,4 +53,3 @@ Assert.That(() => /*whatever*/, Throws.InnerException.TypeOf<DirectoryNotFoundEx
             Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException, typeof(DirectoryNotFoundException));
 
             Assert.AreEqual(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException?.GetType(), typeof(DirectoryNotFoundException));
-

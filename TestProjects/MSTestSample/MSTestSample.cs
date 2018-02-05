@@ -8,28 +8,41 @@ namespace MSTestSample
     [TestClass]
     public class MSTestSample
     {
-        [TestInitialize]
-        public void Initialize()
-        {
+        //[TestInitialize]
+        //public void Initialize()
+        //{
 
+        //}
+
+        //[TestCleanup]
+        //public void Cleanup()
+        //{
+
+        //}
+
+        //[ClassInitialize]
+        //public static void ClassInitialize()
+        //{
+
+        //}
+
+        //[ClassCleanup]
+        //public void ClassCleanup()
+        //{
+
+        //}
+
+        [TestMethod]
+        [DynamicData(nameof(BytePoolInstances), DynamicDataSourceType.Method)]
+        public void UsePoolInParallel(int arg1, int arg2)
+        {
+            Console.WriteLine(arg1 + " - " + arg2);
         }
 
-        [TestCleanup]
-        public void Cleanup()
+        public static IEnumerable<object[]> BytePoolInstances()
         {
-
-        }
-
-        [ClassInitialize]
-        public void ClassInitialize()
-        {
-
-        }
-
-        [ClassCleanup]
-        public void ClassCleanup()
-        {
-
+            yield return new object[] { 1, 2 };
+            yield return new object[] { 3, 4 };
         }
 
         [TestMethod]
@@ -41,6 +54,9 @@ namespace MSTestSample
         public void TestMethod1()
         {
             Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(() => { throw new Exception("dkddk"); }), typeof(ArgumentException));
+
+            
+
         }
 
         [DataTestMethod]

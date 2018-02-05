@@ -80,6 +80,11 @@ namespace UnitTestSample
         {
             Assert.Null(null);
             Assert.IsNull(null);
+
+            Assert.Less(0, 0);
+            Assert.LessOrEqual(0, 0);
+            Assert.Greater(0, 0);
+            Assert.GreaterOrEqual(0, 0);
         }
     }
 
