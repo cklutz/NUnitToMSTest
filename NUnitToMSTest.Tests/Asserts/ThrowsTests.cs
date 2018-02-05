@@ -290,5 +290,49 @@ public class FooTests
                     Assert.AreEqual(expected, result.ToFullString());
                 });
         }
+
+        [TestMethod]
+        public void TestOther()
+        {
+            const string actual = @"
+//using NUnit.Framework;
+public class FooTests
+{ 
+    void Test()
+    {
+        int j;
+        int i = 0;
+        string s = ""
+        s += i;
+        System.Console.WriteLine(s);
+        {
+            string otto;
+        }
+
+try
+            {
+
+            }
+            catch (Exception ex)
+            {
+            }
+    }
+
+    void Test()
+    {
+        double a;
+    }
+}
+";
+            const string expected = @"
+";
+            TestRefactoringWithAsserts(actual, expected,
+                (result, rw) =>
+                {
+                    //Assert.IsTrue(rw.Changed);
+                    //Assert.AreEqual(0, rw.Diagnostics.Count());
+                    //Assert.AreEqual(expected, result.ToFullString());
+                });
+        }
     }
 }

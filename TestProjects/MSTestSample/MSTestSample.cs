@@ -51,6 +51,26 @@ namespace MSTestSample
             var l1 = new List<int>();
             var l2 = new List<int>();
             CollectionAssert.AreEqual(l1, l2);
+
+            try
+            {
+
+            }
+            catch (Exception ex)
+            {
+            }
+
+            {
+                int j;
+            }
+
+            {
+                int j;
+            }
+
+            {
+                int j;
+            }
         }
     }
 }

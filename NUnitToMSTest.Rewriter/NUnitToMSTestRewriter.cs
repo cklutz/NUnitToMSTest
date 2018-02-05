@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Options;
+using Microsoft.CodeAnalysis.Recommendations;
 
 namespace NUnitToMSTest.Rewriter
 {
@@ -17,17 +20,36 @@ namespace NUnitToMSTest.Rewriter
 
         private class PerMethodState
         {
-            public bool DataRowSeen;
-            public ExpressionSyntax Description;
+            private readonly SemanticModel m_semanticModel;
+            private Lazy<ImmutableArray<ILocalSymbol>> m_localSymbols;
 
-            public void Reset()
+            public PerMethodState(SemanticModel semanticModel)
+            {
+                m_semanticModel = semanticModel;
+                m_localSymbols = new Lazy<ImmutableArray<ILocalSymbol>>();
+            }
+
+            public bool DataRowSeen{ get; set; }
+            public ExpressionSyntax Description{ get; set; }
+            public MethodDeclarationSyntax CurrentMethod { get; private set; }
+            public ImmutableArray<ILocalSymbol> CurrentMethodLocals => m_localSymbols.Value;
+
+            public void Reset(MethodDeclarationSyntax method)
             {
                 DataRowSeen = false;
                 Description = null;
+                CurrentMethod = method;
+                m_localSymbols = new Lazy<ImmutableArray<ILocalSymbol>>(GetLocalSymbols);
+            }
+
+            private ImmutableArray<ILocalSymbol> GetLocalSymbols()
+            {
+                return m_semanticModel.LookupSymbols(CurrentMethod.Body.SpanStart)
+                    .OfType<ILocalSymbol>().ToImmutableArray();
             }
         }
 
-        private readonly PerMethodState m_perMethodState = new PerMethodState();
+        private readonly PerMethodState m_perMethodState;
         private readonly List<Diagnostic> m_diagnostics = new List<Diagnostic>();
 
         public bool Changed { get; private set; }
@@ -38,6 +60,7 @@ namespace NUnitToMSTest.Rewriter
         {
             m_semanticModel = semanticModel ?? throw new ArgumentNullException(nameof(semanticModel));
             m_rewriteAsserts = rewriteAsserts;
+            m_perMethodState = new PerMethodState(m_semanticModel);
 
             m_namespaceMsTest =
                 (QualifiedNameSyntax)SyntaxFactory.ParseName("Microsoft.VisualStudio.TestTools.UnitTesting");
@@ -59,30 +82,28 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
+            // Intialize
+            m_perMethodState.Reset(node);
+
+            // Process nodes / children
             node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node);
 
-            try
+            // Post processing
+            if (m_perMethodState.DataRowSeen)
             {
-                if (m_perMethodState.DataRowSeen)
-                {
-                    node = node.AddAttribute(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("DataTestMethod")));
-                    Changed = true;
-                }
-
-                if (m_perMethodState.Description != null)
-                {
-                    var arguments = new SeparatedSyntaxList<AttributeArgumentSyntax>();
-                    arguments = arguments.Add(SyntaxFactory.AttributeArgument(m_perMethodState.Description));
-                    var description = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("Description"));
-                    description = description.WithArgumentList(SyntaxFactory.AttributeArgumentList(arguments));
-
-                    node = node.AddAttribute(description);
-                    Changed = true;
-                }
+                node = node.AddAttribute(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("DataTestMethod")));
+                Changed = true;
             }
-            finally
+
+            if (m_perMethodState.Description != null)
             {
-                m_perMethodState.Reset();
+                var arguments = new SeparatedSyntaxList<AttributeArgumentSyntax>();
+                arguments = arguments.Add(SyntaxFactory.AttributeArgument(m_perMethodState.Description));
+                var description = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("Description"));
+                description = description.WithArgumentList(SyntaxFactory.AttributeArgumentList(arguments));
+
+                node = node.AddAttribute(description);
+                Changed = true;
             }
 
             return node;
@@ -398,8 +419,7 @@ namespace NUnitToMSTest.Rewriter
             return false;
         }
 
-
-        private void CollectMatchDetails(SyntaxNode node, ExceptionSyntaxDetails details, bool staticHelperMode = false)
+        private static void CollectMatchDetails(SyntaxNode node, ExceptionSyntaxDetails details, bool staticHelperMode = false)
         {
             if (node.GetExpression() is MemberAccessExpressionSyntax memberAccess)
             {
