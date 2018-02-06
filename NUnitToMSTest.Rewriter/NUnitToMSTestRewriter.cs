@@ -2,13 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Options;
-using Microsoft.CodeAnalysis.Recommendations;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace NUnitToMSTest.Rewriter
 {
@@ -333,16 +329,16 @@ namespace NUnitToMSTest.Rewriter
                 return node;
             }
 
-            DynamicDataSourceType sourceType;
+            string sourceType;
             if (m_semanticModel.Compilation.FindSymbol<MethodDeclarationSyntax>(
                 symbol => symbol is IMethodSymbol method && method.Name == targetName && method.ContainingType.Name == targetType) != null)
             {
-                sourceType = DynamicDataSourceType.Method;
+                sourceType = "DynamicDataSourceType.Method";
             }
             else if (m_semanticModel.Compilation.FindSymbol<PropertyDeclarationSyntax>(
                 symbol => symbol is IPropertySymbol method && method.Name == targetName && method.ContainingType.Name == targetType) != null)
             {
-                sourceType = DynamicDataSourceType.Property;
+                sourceType = "DynamicDataSourceType.Property";
             }
             else
             {
@@ -367,23 +363,13 @@ namespace NUnitToMSTest.Rewriter
                     SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(targetName))));
             }
 
-            if (sourceType != DynamicDataSourceType.Method)
+            if (sourceType != "DynamicDataSourceType.Method")
             {
-                argList = argList.Add(SyntaxFactory.AttributeArgument(
-                    SyntaxFactory.ParseName(typeof(DynamicDataSourceType).Name + "." + sourceType)));
+                argList = argList.Add(SyntaxFactory.AttributeArgument(SyntaxFactory.ParseName(sourceType)));
             }
-
 
             node = node.WithName(SyntaxFactory.IdentifierName("DynamicData"));
             node = node.WithArgumentList(SyntaxFactory.AttributeArgumentList(argList).NormalizeWhitespace());
-
-            //var location = node.GetLocation();
-
-            //var dynamicData = SyntaxFactory.IdentifierName("DynamicData");
-            //foreach (var argument in node.ArgumentList.Arguments)
-            //{
-
-            //}
 
             return node;
         }

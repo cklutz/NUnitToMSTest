@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Linq;
 using System.Runtime.InteropServices;
+using EnvDTE;
 using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
@@ -10,6 +12,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NUnitToMSTest.Rewriter;
 using DTEProject = EnvDTE.Project;
+using Project = Microsoft.CodeAnalysis.Project;
 using TPL = System.Threading.Tasks;
 
 namespace NUnitToMSTestPackage.Commands
@@ -58,7 +61,7 @@ namespace NUnitToMSTestPackage.Commands
         {
             try
             {
-                bool hasError = false;
+                bool diagnosticsWritten = false;
                 m_errorListProvider.Tasks.Clear();
 
                 var componentModel = (IComponentModel)ServiceProvider.GetService(typeof(SComponentModel));
@@ -69,18 +72,13 @@ namespace NUnitToMSTestPackage.Commands
                 var selectedProject = GetSelectedProject();
                 if (selectedProject != null)
                 {
-                    ((IVsSolution)Package.GetGlobalService(typeof(IVsSolution))).GetProjectOfUniqueName(selectedProject.UniqueName,
-                        out var hierarchyItem);
+                    var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.Name == selectedProject.Name);
 
-                    string projectName = selectedProject.Name;
-
-                    var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.Name == projectName);
-                    if (project != null && project.HasDocuments && project.Language == "C#")
+                    if (project != null && IsSupportedProject(project))
                     {
-                        var documentIds = project.Documents.Where(document => document.SupportsSemanticModel && document.SupportsSyntaxTree &&
-                                                                               document.SourceCodeKind == SourceCodeKind.Regular).Select(d => d.Id);
-                        //foreach (var document in project.Documents)
-                        foreach (var documentId in documentIds)
+                        var hierarchyItem = GetProjectHierarchyItem(selectedProject);
+
+                        foreach (var documentId in GetSupportedDocumentIds(project))
                         {
                             var document = project.Documents.First(d => d.Id == documentId);
                             N2MPackage.WriteToOutputPane($"Processing {document.FilePath}");
@@ -93,30 +91,27 @@ namespace NUnitToMSTestPackage.Commands
                             if (rw.Changed)
                             {
                                 N2MPackage.WriteToOutputPane($"Saving changes in {document.FilePath}");
-
                                 var newDocument = document.WithSyntaxRoot(result);
                                 project = newDocument.Project;
                                 newSolution = project.Solution;
                             }
 
-                            foreach (var diag in rw.Diagnostics)
-                            {
-                                N2MPackage.WriteToOutputPane(diag.ToString());
-
-                                m_errorListProvider.Tasks.Add(ToErrorTask(diag, selectedProject, hierarchyItem));
-                                hasError = true;
-                            }
+                            if (ProcessDiagnostics(rw, selectedProject, hierarchyItem))
+                                diagnosticsWritten = true;
                         }
 
                         if (newSolution != solution)
                         {
+                            project = UpdateProject(project, selectedProject, hierarchyItem);
+                            newSolution = project.Solution;
+
                             if (!workspace.TryApplyChanges(newSolution))
                                 N2MPackage.ShowErrorBox(ServiceProvider, "Changes not saved.");
                         }
                     }
                 }
 
-                if (hasError)
+                if (diagnosticsWritten)
                 {
                     m_errorListProvider.Show();
                 }
@@ -125,6 +120,55 @@ namespace NUnitToMSTestPackage.Commands
             {
                 N2MPackage.ShowErrorBox(ServiceProvider, ex.ToString());
             }
+        }
+
+        private Project UpdateProject(Project project, DTEProject selectedProject, IVsHierarchy hierarchyItem)
+        {
+            //foreach (Property property in selectedProject.Properties)
+            //{
+            //    try
+            //    {
+            //        N2MPackage.WriteToOutputPane(property.Name + " = " + property.Value);
+            //    }
+            //    catch (COMException)
+            //    {
+            //        N2MPackage.WriteToOutputPane(property.Name + " = ******* ERROR ***********");
+            //    }
+            //}
+            return project;
+        }
+
+        private bool ProcessDiagnostics(NUnitToMSTestRewriter rw, DTEProject selectedProject, IVsHierarchy hierarchyItem)
+        {
+            foreach (var diag in rw.Diagnostics)
+            {
+                N2MPackage.WriteToOutputPane(diag.ToString());
+                m_errorListProvider.Tasks.Add(ToErrorTask(diag, selectedProject, hierarchyItem));
+                return true;
+            }
+
+            return false;
+        }
+
+        private static IVsHierarchy GetProjectHierarchyItem(DTEProject selectedProject)
+        {
+            ((IVsSolution)Package.GetGlobalService(typeof(IVsSolution))).GetProjectOfUniqueName(selectedProject.UniqueName,
+                out var hierarchyItem);
+            return hierarchyItem;
+        }
+
+        private static bool IsSupportedProject(Project project)
+        {
+            return project.HasDocuments && project.Language == "C#";
+        }
+
+        private static IEnumerable<DocumentId> GetSupportedDocumentIds(Project project)
+        {
+            return project.Documents
+                .Where(document => document.SupportsSemanticModel &&
+                                   document.SupportsSyntaxTree &&
+                                   document.SourceCodeKind == SourceCodeKind.Regular)
+                .Select(d => d.Id);
         }
 
         private ErrorTask ToErrorTask(Diagnostic diag, DTEProject project, IVsHierarchy hierarchyItem)
