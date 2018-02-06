@@ -101,11 +101,37 @@ namespace NUnitToMSTestPackage.Commands
 
                         if (newSolution != solution)
                         {
-                            project = new ProjectUpdater(project).Update();
-                            newSolution = project.Solution;
+                            N2MPackage.WriteToOutputPane($"Updating project {project.FilePath}.");
+
+                            if (m_options.MakeSureProjectFileHasUnitTestType)
+                            {
+                                project = new ProjectUpdater(project).Update();
+                                newSolution = project.Solution;
+                            }
 
                             if (!workspace.TryApplyChanges(newSolution))
                                 N2MPackage.ShowErrorBox(ServiceProvider, "Changes not saved.");
+
+                            // This has to happen after "workspace.TryApplyChanges()", or some internal state
+                            // is off, and the apply changes fails.
+                            if (!string.IsNullOrWhiteSpace(m_options.MSTestPackageVersion))
+                            {
+                                using (var packageInstaller = PackageHandler.CreateHosted(selectedProject))
+                                {
+                                    packageInstaller.AddPackage("MSTest.TestAdapter", m_options.MSTestPackageVersion);
+                                    packageInstaller.AddPackage("MSTest.TestFramework", m_options.MSTestPackageVersion);
+                                }
+                            }
+
+                            if (m_options.UninstallNUnitPackages)
+                            {
+                                using (var packageInstaller = PackageHandler.CreateHosted(selectedProject))
+                                {
+                                    packageInstaller.RemovePackage("NUnit3Adapter");
+                                    packageInstaller.RemovePackage("NUnit.Console");
+                                    packageInstaller.RemovePackage("NUnit");
+                                }
+                            }
                         }
                     }
                 }
@@ -121,7 +147,7 @@ namespace NUnitToMSTestPackage.Commands
             }
         }
 
-        
+
 
         private bool ProcessDiagnostics(NUnitToMSTestRewriter rw, DTEProject selectedProject, IVsHierarchy hierarchyItem)
         {
