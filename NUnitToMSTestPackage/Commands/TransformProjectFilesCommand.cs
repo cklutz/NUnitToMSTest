@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Linq;
 using System.Runtime.InteropServices;
-using EnvDTE;
 using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
@@ -102,7 +101,7 @@ namespace NUnitToMSTestPackage.Commands
 
                         if (newSolution != solution)
                         {
-                            project = UpdateProject(project, selectedProject, hierarchyItem);
+                            project = new ProjectUpdater(project).Update();
                             newSolution = project.Solution;
 
                             if (!workspace.TryApplyChanges(newSolution))
@@ -122,21 +121,7 @@ namespace NUnitToMSTestPackage.Commands
             }
         }
 
-        private Project UpdateProject(Project project, DTEProject selectedProject, IVsHierarchy hierarchyItem)
-        {
-            //foreach (Property property in selectedProject.Properties)
-            //{
-            //    try
-            //    {
-            //        N2MPackage.WriteToOutputPane(property.Name + " = " + property.Value);
-            //    }
-            //    catch (COMException)
-            //    {
-            //        N2MPackage.WriteToOutputPane(property.Name + " = ******* ERROR ***********");
-            //    }
-            //}
-            return project;
-        }
+        
 
         private bool ProcessDiagnostics(NUnitToMSTestRewriter rw, DTEProject selectedProject, IVsHierarchy hierarchyItem)
         {
