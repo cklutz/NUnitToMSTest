@@ -246,6 +246,49 @@ namespace NUnitToMSTest.Rewriter
             return SyntaxTriviaList.Empty;
         }
 
+        public static bool TypeSymbolMatchesType(this SemanticModel semanticModel, ITypeSymbol typeSymbol, Type type)
+        {
+            return GetTypeSymbolForType(type, semanticModel).Equals(typeSymbol);
+        }
+
+        private static INamedTypeSymbol GetTypeSymbolForType(Type type, SemanticModel semanticModel)
+        {
+            if (!type.IsConstructedGenericType)
+            {
+                return semanticModel.Compilation.GetTypeByMetadataName(type.FullName);
+            }
+
+            // get all typeInfo's for the Type arguments 
+            var typeArgumentsTypeInfos = type.GenericTypeArguments.Select(a => GetTypeSymbolForType(a, semanticModel));
+
+            var openType = type.GetGenericTypeDefinition();
+            var typeSymbol = semanticModel.Compilation.GetTypeByMetadataName(openType.FullName);
+            return typeSymbol.Construct(typeArgumentsTypeInfos.ToArray<ITypeSymbol>());
+        }
+
+        public static string GetLiteralString(this ExpressionSyntax arg)
+        {
+            if (arg is LiteralExpressionSyntax)
+            {
+                // Remove quotes.
+                string str = arg.ToString().Trim('"');
+                if (SyntaxFacts.IsValidIdentifier(str))
+                {
+                    return str;
+                }
+            }
+
+            // We can handle one invocation expression and that is "nameof(...)".
+            if (arg is InvocationExpressionSyntax invocation &&
+                invocation.Expression.EqualsString("nameof"))
+            {
+                var n = (QualifiedNameSyntax)SyntaxFactory.ParseName(invocation.ArgumentList.Arguments[0].ToString());
+                return n.Right.ToString();
+            }
+
+            return null;
+        }
+
         public static ArgumentListSyntax TransformParentInvocationArguments(
             this MemberAccessExpressionSyntax memberAccess,
             ExceptionSyntaxDetails details, int numArgumentsRequired,

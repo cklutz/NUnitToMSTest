@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Recommendations;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace NUnitToMSTest.Rewriter
 {
@@ -29,8 +30,8 @@ namespace NUnitToMSTest.Rewriter
                 m_localSymbols = new Lazy<ImmutableArray<ILocalSymbol>>();
             }
 
-            public bool DataRowSeen{ get; set; }
-            public ExpressionSyntax Description{ get; set; }
+            public bool DataRowSeen { get; set; }
+            public ExpressionSyntax Description { get; set; }
             public MethodDeclarationSyntax CurrentMethod { get; private set; }
             public ImmutableArray<ILocalSymbol> CurrentMethodLocals => m_localSymbols.Value;
 
@@ -130,9 +131,11 @@ namespace NUnitToMSTest.Rewriter
                     node = node.WithName(SyntaxFactory.IdentifierName("TestCleanup"));
                     break;
                 case "NUnit.Framework.OneTimeSetUpAttribute":
+                    WarnIfCurrentMethodNotStatic("ClassInitialize", location);
                     node = node.WithName(SyntaxFactory.IdentifierName("ClassInitialize"));
                     break;
                 case "NUnit.Framework.OneTimeTearDownAttribute":
+                    WarnIfCurrentMethodNotStatic("ClassCleanup", location);
                     node = node.WithName(SyntaxFactory.IdentifierName("ClassCleanup"));
                     break;
 
@@ -150,6 +153,10 @@ namespace NUnitToMSTest.Rewriter
                     node = node.WithName(SyntaxFactory.IdentifierName("DataRow"))
                         .RenameNameEquals("TestName", "DisplayName");
                     m_perMethodState.DataRowSeen = true;
+                    Changed = true;
+                    break;
+                case "NUnit.Framework.TestCaseSourceAttribute":
+                    node = TransformTestCaseSourceAttribute(node);
                     Changed = true;
                     break;
                 case "NUnit.Framework.TestAttribute":
@@ -199,6 +206,15 @@ namespace NUnitToMSTest.Rewriter
             return node;
         }
 
+        private void WarnIfCurrentMethodNotStatic(string attributeName, Location location)
+        {
+            if (m_perMethodState.CurrentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.StaticKeyword))
+            {
+                m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.MethodMustBeStaticForAttribute, location,
+                    attributeName, m_perMethodState.CurrentMethod.Identifier));
+            }
+        }
+
         private AttributeSyntax TransformExplicitAttribute(AttributeSyntax node)
         {
             var location = node.GetLocation();
@@ -227,6 +243,147 @@ namespace NUnitToMSTest.Rewriter
 
             m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.TransformedUnsupported, location, original,
                 node.ToFullString()));
+
+            return node;
+        }
+
+        private static ISymbol FindSymbol<T>(Compilation compilation, Func<ISymbol, bool> predicate)
+            where T : SyntaxNode
+        {
+            return compilation.SyntaxTrees
+                .Select(x => compilation.GetSemanticModel(x))
+                .SelectMany(
+                    x => x.SyntaxTree
+                        .GetRoot()
+                        .DescendantNodes()
+                        .OfType<T>()
+                        .Select(y => x.GetDeclaredSymbol(y)))
+                .FirstOrDefault(x => predicate(x));
+        }
+
+        private string GetMethodContainingType(MethodDeclarationSyntax node)
+        {
+            do
+            {
+                var parent = node.Parent;
+                if (parent is ClassDeclarationSyntax clazz)
+                {
+                    return clazz.Identifier.ToString();
+                }
+                if (parent is StructDeclarationSyntax strukt)
+                {
+                    return strukt.Identifier.ToString();
+                }
+            }
+            while (node.Parent != null);
+            return null;
+        }
+
+        private AttributeSyntax TransformTestCaseSourceAttribute(AttributeSyntax node)
+        {
+            var location = node.GetLocation();
+
+            // There are a number of possible overloads for the TestCaseDataAttribute,
+            // for sanity, we currently support only two:
+            //
+            //  [TestCaseData(string sourceName)]
+            //  [TestCaseData(Type sourceType, string sourceName)]
+
+            bool supported = false;
+            string targetName = null;
+            string targetType = null;
+            string explicitTargetType = null;
+            if (node.ArgumentList != null)
+            {
+                int count = node.ArgumentList.Arguments.Count;
+                if (count == 1)
+                {
+                    var arg0 = node.ArgumentList.Arguments[0];
+                    var type0 = m_semanticModel.GetTypeInfo(arg0.Expression);
+                    if (type0.ConvertedType?.SpecialType == SpecialType.System_String &&
+                        (targetName = arg0.Expression.GetLiteralString()) != null)
+                    {
+                        supported = true;
+                        targetType = GetMethodContainingType(m_perMethodState.CurrentMethod);
+                    }
+                }
+                else if (count == 2)
+                {
+                    var arg0 = node.ArgumentList.Arguments[0];
+                    var arg1 = node.ArgumentList.Arguments[1];
+                    var type0 = m_semanticModel.GetTypeInfo(arg0.Expression);
+                    var type1 = m_semanticModel.GetTypeInfo(arg1.Expression);
+
+                    if (m_semanticModel.TypeSymbolMatchesType(type0.ConvertedType, typeof(Type)) &&
+                        arg0.Expression is TypeOfExpressionSyntax typeOfExpression &&
+                        type1.ConvertedType?.SpecialType == SpecialType.System_String &&
+                        (targetName = arg1.Expression.GetLiteralString()) != null)
+                    {
+                        targetType = m_semanticModel.GetTypeInfo(typeOfExpression.Type).ConvertedType?.ToString();
+                        explicitTargetType = targetType;
+                        supported = targetType != null;
+                    }
+                }
+            }
+
+            if (!supported)
+            {
+                m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttributeUsage, location, node.Name,
+                    "Specific syntax not supported."));
+                return node;
+            }
+
+            DynamicDataSourceType sourceType;
+            if (m_semanticModel.Compilation.FindSymbol<MethodDeclarationSyntax>(
+                symbol => symbol is IMethodSymbol method && method.Name == targetName && method.ContainingType.Name == targetType) != null)
+            {
+                sourceType = DynamicDataSourceType.Method;
+            }
+            else if (m_semanticModel.Compilation.FindSymbol<PropertyDeclarationSyntax>(
+                symbol => symbol is IPropertySymbol method && method.Name == targetName && method.ContainingType.Name == targetType) != null)
+            {
+                sourceType = DynamicDataSourceType.Property;
+            }
+            else
+            {
+                m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttributeUsage, location, node.Name,
+                    "Source name must be a method or property"));
+                return node;
+            }
+
+            var argList = new SeparatedSyntaxList<AttributeArgumentSyntax>();
+            if (explicitTargetType != null)
+            {
+                // [DynamicData(targetName, typeof(targetType), DynamicDataSourceType.Method)]
+                argList = argList.Add(SyntaxFactory.AttributeArgument(
+                    SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(targetName))));
+                argList = argList.Add(SyntaxFactory.AttributeArgument(
+                    SyntaxFactory.TypeOfExpression(SyntaxFactory.IdentifierName(explicitTargetType))));
+            }
+            else
+            {
+                // [DynamicData(targetName, DynamicDataSourceType.Method)]
+                argList = argList.Add(SyntaxFactory.AttributeArgument(
+                    SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(targetName))));
+            }
+
+            if (sourceType != DynamicDataSourceType.Method)
+            {
+                argList = argList.Add(SyntaxFactory.AttributeArgument(
+                    SyntaxFactory.ParseName(typeof(DynamicDataSourceType).Name + "." + sourceType)));
+            }
+
+
+            node = node.WithName(SyntaxFactory.IdentifierName("DynamicData"));
+            node = node.WithArgumentList(SyntaxFactory.AttributeArgumentList(argList).NormalizeWhitespace());
+
+            //var location = node.GetLocation();
+
+            //var dynamicData = SyntaxFactory.IdentifierName("DynamicData");
+            //foreach (var argument in node.ArgumentList.Arguments)
+            //{
+
+            //}
 
             return node;
         }
@@ -466,7 +623,6 @@ namespace NUnitToMSTest.Rewriter
                         if (details.MatchType != MatchType.None)
                         {
                             details.MatchTarget = memberName;
-
                             details.MatchTargetArguments = memberAccess.TransformParentInvocationArguments(details, 1,
                                 (arg, i) =>
                                 {
@@ -474,25 +630,9 @@ namespace NUnitToMSTest.Rewriter
                                     // Thus we cannot handle something like 'Property(Func())', because that
                                     // would require either executing the code to get the actual string value,
                                     // or use reflection when writing the exception.
-                                    if (arg.Expression is LiteralExpressionSyntax)
-                                    {
-                                        // Remove quotes.
-                                        string str = arg.Expression.ToString().Trim('"');
-                                        if (SyntaxFacts.IsValidIdentifier(str))
-                                        {
-                                            return SyntaxFactory.Argument(SyntaxFactory.IdentifierName(str));
-                                        }
-                                    }
-
-                                    // We can handle one invocation expression and that is "nameof(...)".
-                                    if (arg.Expression is InvocationExpressionSyntax invocation &&
-                                        invocation.Expression.EqualsString("nameof"))
-                                    {
-                                        var n = (QualifiedNameSyntax)SyntaxFactory.ParseName(invocation.ArgumentList.Arguments[0].ToString());
-                                        return SyntaxFactory.Argument(n.Right);
-                                    }
-
-                                    // Something else: give up.
+                                    string str = arg.Expression?.GetLiteralString();
+                                    if (str != null)
+                                        return SyntaxFactory.Argument(SyntaxFactory.IdentifierName(str));
                                     return null;
                                 });
                         }

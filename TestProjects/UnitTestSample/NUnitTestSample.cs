@@ -26,15 +26,21 @@ namespace UnitTestSample
         }
 
         [OneTimeSetUp]
-        public void ClassInitialize()
+        public static void ClassInitialize()
         {
-
+            Console.WriteLine("OneTimeSetup");
         }
 
         [OneTimeTearDown]
-        public void ClassCleanup()
+        public static void ClassCleanup()
         {
-
+            Console.WriteLine("OneTimeTearDown");
+        }
+        
+        [Test]
+        public void Vanilla()
+        {
+            Console.WriteLine(nameof(Vanilla));
         }
 
         [Ignore("Message", Until = "Forever")]
@@ -63,6 +69,13 @@ namespace UnitTestSample
         }
 
         private void Dummy() {}
+
+        [TestCaseSource("sourceName")]
+        [TestCaseSource(typeof(NUnitTestSample), "sourceName")]
+        public void TestDataSource(int x)
+        {
+
+        }
 
 
 

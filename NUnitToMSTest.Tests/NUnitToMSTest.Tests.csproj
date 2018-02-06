@@ -156,6 +156,7 @@
     <Compile Include="Attributes\PropertyAttributeTests.cs" />
     <Compile Include="Attributes\IgnoreAttributeTests.cs" />
     <Compile Include="Attributes\MiscAttributesTests.cs" />
+    <Compile Include="Attributes\TestCaseSourceAttributeTests.cs" />
     <Compile Include="Support\RefactoringTestBase.cs" />
     <Compile Include="Support\TestOptions.cs" />
     <Compile Include="Support\TestSupport.cs" />

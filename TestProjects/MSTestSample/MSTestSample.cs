@@ -59,6 +59,14 @@ namespace MSTestSample
 
         }
 
+        
+        [DynamicData("sourceName")]
+        [DynamicData("sourceName", typeof(MSTestSample), DynamicDataSourceType.Method)]
+        public void TestDataSource(int x)
+        {
+
+        }
+
         [DataTestMethod]
         [DataRow(1)]
         [Ignore("xxx")]

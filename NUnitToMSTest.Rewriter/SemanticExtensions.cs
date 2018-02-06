@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -18,6 +19,20 @@ namespace NUnitToMSTest.Rewriter
                     return true;
             }
             return false;
+        }
+
+        public static ISymbol FindSymbol<T>(this Compilation compilation, Func<ISymbol, bool> predicate)
+            where T : SyntaxNode
+        {
+            return compilation.SyntaxTrees
+                .Select(x => compilation.GetSemanticModel(x))
+                .SelectMany(
+                    x => x.SyntaxTree
+                        .GetRoot()
+                        .DescendantNodes()
+                        .OfType<T>()
+                        .Select(y => x.GetDeclaredSymbol(y)))
+                .FirstOrDefault(x => predicate(x));
         }
     }
 }

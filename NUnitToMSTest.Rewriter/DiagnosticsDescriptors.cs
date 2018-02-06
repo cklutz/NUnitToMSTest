@@ -49,5 +49,21 @@ namespace NUnitToMSTest.Rewriter
             AttributeRewriteCategory,
             DiagnosticSeverity.Warning,
             true);
+
+        public static readonly DiagnosticDescriptor MethodMustBeStaticForAttribute = new DiagnosticDescriptor(
+            GetId(6),
+            nameof(MethodMustBeStaticForAttribute),
+            "Methods attributed with '[{0}]' must be static in MSTest, or they will not be invoked. Review and change method '{1}' manually.",
+            AttributeRewriteCategory,
+            DiagnosticSeverity.Warning,
+            true);
+
+        public static readonly DiagnosticDescriptor UnsupportedAttributeUsage = new DiagnosticDescriptor(
+            GetId(7),
+            nameof(UnsupportedAttributeUsage),
+            "The usage of the attribute '[{0}]' is not supported. Manual handling required. {1}",
+            AttributeRewriteCategory,
+            DiagnosticSeverity.Warning,
+            true);
     }
 }

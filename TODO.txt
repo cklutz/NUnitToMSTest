@@ -9,17 +9,6 @@ Assert.GreaterOrEqual(a1, a2);
 	Assert.IsTrue(a1 > a2)
 	Assert.IsTrue(a1 >= a2)
 
-[TestDataSource("name")]
-
-		[DynamicData(nameof(BytePoolInstances), DynamicDataSourceType.Method)]
-		[DynamicData(nameof(BytePoolInstances), DynamicDataSourceType.Property)]
-
-[ClassInitialize]
-[ClassCleanup]
-
-		Methods must be "static".
-
-
 Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
 
 	CollectionAssert.AreEqual(actual.ToList(), expected.ToList(), new MyComparer());
@@ -34,7 +23,7 @@ Assert.That(actual, Is.EqualTo(expected).Using(new MyComparer()));
 
 	Workaround:
 
-	CollectionAssert.AreEqual(new [] { actual }, new [] { expected }, newe MyComparer());
+	CollectionAssert.AreEqual(new [] { actual }, new [] { expected }, new MyComparer());
 
 Assert.That(() => result, Is.Not.Null);
 Assert.That(() => result.Foo, Is.EqualTo(options.Foo));
