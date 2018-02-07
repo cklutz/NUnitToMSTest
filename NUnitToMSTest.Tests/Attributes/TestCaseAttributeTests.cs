@@ -26,6 +26,7 @@ public class FooTests
 { 
     [DataRow(1, 2, 3)]
     [DataTestMethod]
+    [CLSCompliant(false)]
     void Test(int a, int b, int c) {}
 }
 ";

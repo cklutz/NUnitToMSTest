@@ -89,6 +89,17 @@ namespace NUnitToMSTest.Rewriter
             if (m_perMethodState.DataRowSeen)
             {
                 node = node.AddAttribute(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("DataTestMethod")));
+
+                if (node.AttributeLists.SelectMany(al => al.Attributes).All(a => a.Name.ToString() != "CLSCompliant"))
+                {
+                    var clsCompliant = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("CLSCompliant"));
+                    clsCompliant = clsCompliant.WithArgumentList(SyntaxFactory.AttributeArgumentList(
+                        SyntaxFactory.SingletonSeparatedList(
+                                SyntaxFactory.AttributeArgument(
+                                    SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)))));
+                    node = node.AddAttribute(clsCompliant);
+                }
+
                 Changed = true;
             }
 
