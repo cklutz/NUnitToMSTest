@@ -74,7 +74,6 @@ namespace UnitTestSample
         [TestCaseSource(typeof(NUnitTestSample), "sourceName")]
         public void TestDataSource(int x)
         {
-
         }
 
 
