@@ -118,88 +118,96 @@ namespace NUnitToMSTest.Rewriter
 
             string existingTypeName = existing.Symbol?.ContainingType?.ToDisplayString();
             var location = node.GetLocation();
-            switch (existingTypeName)
+            var originalNode = node;
+            try
             {
-                case "NUnit.Framework.SetUpAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("TestInitialize"));
-                    break;
-                case "NUnit.Framework.TearDownAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("TestCleanup"));
-                    break;
-                case "NUnit.Framework.OneTimeSetUpAttribute":
-                    WarnIfCurrentMethodNotStatic("ClassInitialize", location);
-                    node = node.WithName(SyntaxFactory.IdentifierName("ClassInitialize"));
-                    break;
-                case "NUnit.Framework.OneTimeTearDownAttribute":
-                    WarnIfCurrentMethodNotStatic("ClassCleanup", location);
-                    node = node.WithName(SyntaxFactory.IdentifierName("ClassCleanup"));
-                    break;
-
-                case "NUnit.Framework.PropertyAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("TestProperty"))
-                        .ConvertArgumentsToString(m_diagnostics, location);
-                    break;
-
-                case "NUnit.Framework.TestFixtureAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("TestClass"))
-                        .WithoutArgumentList(m_diagnostics, location);
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.TestCaseAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("DataRow"))
-                        .RenameNameEquals("TestName", "DisplayName");
-                    m_perMethodState.DataRowSeen = true;
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.TestCaseSourceAttribute":
-                    node = TransformTestCaseSourceAttribute(node);
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.TestAttribute":
-                    m_perMethodState.Description = node.GetNameEqualsExpression("Description");
-                    node = node.WithName(SyntaxFactory.IdentifierName("TestMethod"))
-                        .WithoutArgumentList(m_diagnostics, location, "Description");
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.CategoryAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("TestCategory"));
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.ExplicitAttribute":
-                    node = TransformExplicitAttribute(node);
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.IgnoreAttribute":
-                    node = node.WithName(SyntaxFactory.IdentifierName("Ignore"))
-                        .WithoutNameEquals("Until", m_diagnostics, location);
-                    Changed = true;
-                    break;
-                case "NUnit.Framework.DescriptionAttribute"
-                    // With MSTest DescriptionAttribute only supported on methods 
-                    when node.GetParentKind() == SyntaxKind.MethodDeclaration:
-                    node = node.WithName(SyntaxFactory.IdentifierName("Description"));
-                    Changed = true;
-                    break;
-                default:
-                    {
-                        if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
-                        {
-                            // Replace (potential) unqualified name with qualified name.
-                            // Otherwise, an attribute whose unqualified name is accidentally the same
-                            // as that of some other, unrelated, attribute could semantically change (since we
-                            // replace the "using NUnit.Framework" with "using <MSTest>").
-                            var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
-                            m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
-                                node.ToFullString()));
-                            node = node.WithName(fullQualifiedName);
-                            Changed = true;
-                        }
-
+                switch (existingTypeName)
+                {
+                    case "NUnit.Framework.SetUpAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("TestInitialize"));
                         break;
-                    }
-            }
+                    case "NUnit.Framework.TearDownAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("TestCleanup"));
+                        break;
+                    case "NUnit.Framework.OneTimeSetUpAttribute":
+                        WarnIfCurrentMethodNotStatic("ClassInitialize", location);
+                        node = node.WithName(SyntaxFactory.IdentifierName("ClassInitialize"));
+                        break;
+                    case "NUnit.Framework.OneTimeTearDownAttribute":
+                        WarnIfCurrentMethodNotStatic("ClassCleanup", location);
+                        node = node.WithName(SyntaxFactory.IdentifierName("ClassCleanup"));
+                        break;
 
-            return node;
+                    case "NUnit.Framework.PropertyAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("TestProperty"))
+                            .ConvertArgumentsToString(m_diagnostics, location);
+                        break;
+
+                    case "NUnit.Framework.TestFixtureAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("TestClass"))
+                            .WithoutArgumentList(m_diagnostics, location);
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.TestCaseAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("DataRow"))
+                            .RenameNameEquals("TestName", "DisplayName");
+                        m_perMethodState.DataRowSeen = true;
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.TestCaseSourceAttribute":
+                        node = TransformTestCaseSourceAttribute(node);
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.TestAttribute":
+                        m_perMethodState.Description = node.GetNameEqualsExpression("Description");
+                        node = node.WithName(SyntaxFactory.IdentifierName("TestMethod"))
+                            .WithoutArgumentList(m_diagnostics, location, "Description");
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.CategoryAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("TestCategory"));
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.ExplicitAttribute":
+                        node = TransformExplicitAttribute(node);
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.IgnoreAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("Ignore"))
+                            .WithoutNameEquals("Until", m_diagnostics, location);
+                        Changed = true;
+                        break;
+                    case "NUnit.Framework.DescriptionAttribute"
+                        // With MSTest DescriptionAttribute only supported on methods 
+                        when node.GetParentKind() == SyntaxKind.MethodDeclaration:
+                        node = node.WithName(SyntaxFactory.IdentifierName("Description"));
+                        Changed = true;
+                        break;
+                    default:
+                        {
+                            if (existingTypeName != null && existingTypeName.StartsWith("NUnit."))
+                            {
+                                // Replace (potential) unqualified name with qualified name.
+                                // Otherwise, an attribute whose unqualified name is accidentally the same
+                                // as that of some other, unrelated, attribute could semantically change (since we
+                                // replace the "using NUnit.Framework" with "using <MSTest>").
+                                var fullQualifiedName = SyntaxFactory.ParseName(existingTypeName);
+                                m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.UnsupportedAttribute, location,
+                                    node.ToFullString()));
+                                node = node.WithName(fullQualifiedName);
+                                Changed = true;
+                            }
+
+                            break;
+                        }
+                }
+
+                return node;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to process '{originalNode}' [{location}]: {ex.Message}", ex);
+            }
         }
 
         private void WarnIfCurrentMethodNotStatic(string attributeName, Location location)
@@ -243,21 +251,7 @@ namespace NUnitToMSTest.Rewriter
             return node;
         }
 
-        private static ISymbol FindSymbol<T>(Compilation compilation, Func<ISymbol, bool> predicate)
-            where T : SyntaxNode
-        {
-            return compilation.SyntaxTrees
-                .Select(x => compilation.GetSemanticModel(x))
-                .SelectMany(
-                    x => x.SyntaxTree
-                        .GetRoot()
-                        .DescendantNodes()
-                        .OfType<T>()
-                        .Select(y => x.GetDeclaredSymbol(y)))
-                .FirstOrDefault(x => predicate(x));
-        }
-
-        private string GetMethodContainingType(MethodDeclarationSyntax node)
+        private static string GetMethodContainingType(MethodDeclarationSyntax node)
         {
             do
             {

@@ -144,7 +144,7 @@ namespace NUnitToMSTest.Rewriter
                     SyntaxFactory.MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,
                         SyntaxFactory.IdentifierName("Assert"),
-                        SyntaxFactory.IdentifierName("InstanceOfType")))
+                        SyntaxFactory.IdentifierName("IsInstanceOfType")))
                 .WithArgumentList(
                     SyntaxFactory.ArgumentList(
                         SyntaxFactory.SeparatedList<ArgumentSyntax>(

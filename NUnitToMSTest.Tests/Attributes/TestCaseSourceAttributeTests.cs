@@ -18,6 +18,7 @@ using NUnit.Framework;
 public class FooTests
 { 
     [TestCaseSource(""Method"")]
+    [TestCaseSource(nameof(Method))]
     [TestCaseSource(""Property"")]
     [TestCaseSource(typeof(FooTests), ""Method"")]
     [TestCaseSource(typeof(Helper), ""MethodFromHelper"")]
@@ -39,6 +40,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 [TestClass]
 public class FooTests
 { 
+    [DynamicData(""Method"")]
     [DynamicData(""Method"")]
     [DynamicData(""Property"", DynamicDataSourceType.Property)]
     [DynamicData(""Method"", typeof (FooTests))]

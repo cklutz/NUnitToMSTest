@@ -276,9 +276,9 @@ public class FooTests
     void Dummy() { }
     void Test()
     {
-        Assert.InstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMemoryException));
-        Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => Dummy()),typeof(OutOfMemoryException));
-        Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => Dummy()),typeof(OutOfMemoryException));
+        Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMemoryException));
+        Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(() => Dummy()),typeof(OutOfMemoryException));
+        Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(() => Dummy()),typeof(OutOfMemoryException));
     }
 }
 ";

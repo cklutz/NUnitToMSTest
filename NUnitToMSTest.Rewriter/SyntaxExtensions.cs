@@ -282,8 +282,15 @@ namespace NUnitToMSTest.Rewriter
             if (arg is InvocationExpressionSyntax invocation &&
                 invocation.Expression.EqualsString("nameof"))
             {
-                var n = (QualifiedNameSyntax)SyntaxFactory.ParseName(invocation.ArgumentList.Arguments[0].ToString());
-                return n.Right.ToString();
+                var n = SyntaxFactory.ParseName(invocation.ArgumentList.Arguments[0].ToString());
+                if (n is QualifiedNameSyntax qn)
+                {
+                    return qn.Right.ToString();
+                }
+                if (n is IdentifierNameSyntax iname)
+                {
+                    return iname.Identifier.ToString();
+                }
             }
 
             return null;
