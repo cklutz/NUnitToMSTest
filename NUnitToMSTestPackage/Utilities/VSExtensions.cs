@@ -34,19 +34,48 @@ namespace NUnitToMSTestPackage.Utilities
 
         public static DTEProject GetSelectedProject()
         {
-            var monitorSelection = (IVsMonitorSelection)Package.GetGlobalService(typeof(SVsShellMonitorSelection));
+            ThreadHelper.ThrowIfNotOnUIThread();
 
-            monitorSelection.GetCurrentSelection(out var hierarchyPointer, out var projectItemId, out _, out _);
+            IntPtr ppHier = IntPtr.Zero;
+            IntPtr ppSC = IntPtr.Zero;
 
-            Object selectedObject = null;
-            if (Marshal.GetTypedObjectForIUnknown(hierarchyPointer, typeof(IVsHierarchy)) is IVsHierarchy selectedHierarchy)
+            try
             {
-                ErrorHandler.ThrowOnFailure(selectedHierarchy.GetProperty(
-                    projectItemId, (int)__VSHPROPID.VSHPROPID_ExtObject, out selectedObject));
-            }
+                var vsMonitorSelection = (IVsMonitorSelection)Package.GetGlobalService(typeof(SVsShellMonitorSelection));
+                vsMonitorSelection.GetCurrentSelection(out ppHier, out var pitemid, out _, out ppSC);
 
-            var selectedProject = selectedObject as DTEProject;
-            return selectedProject;
+                if (ppHier == IntPtr.Zero)
+                {
+                    return null;
+                }
+
+                // multiple items are selected.
+                if (pitemid == (uint)VSConstants.VSITEMID.Selection)
+                {
+                    return null;
+                }
+
+                if (Marshal.GetTypedObjectForIUnknown(ppHier, typeof(IVsHierarchy)) is IVsHierarchy hierarchy)
+                {
+                    if (hierarchy.GetProperty(VSConstants.VSITEMID_ROOT, (int)__VSHPROPID.VSHPROPID_ExtObject, out var project) >= 0)
+                    {
+                        return project as DTEProject;
+                    }
+                }
+
+                return null;
+            }
+            finally
+            {
+                if (ppHier != IntPtr.Zero)
+                {
+                    Marshal.Release(ppHier);
+                }
+                if (ppSC != IntPtr.Zero)
+                {
+                    Marshal.Release(ppSC);
+                }
+            }
         }
 
         public static ErrorTask AddTask(this ErrorListProvider errorListProvider, Diagnostic diagnostic, DTEProject project)

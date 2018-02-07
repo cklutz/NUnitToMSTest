@@ -31,6 +31,8 @@ namespace NUnitToMSTestPackage.Utilities
 
             title = title ?? s_defaultTitle;
 
+            ActivityLog.LogError(PackageConstants.Title, message);
+
             return VsShellUtilities.ShowMessageBox(
                 serviceProvider,
                 message,
