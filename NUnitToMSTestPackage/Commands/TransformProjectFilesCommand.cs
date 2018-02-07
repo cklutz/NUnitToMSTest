@@ -10,8 +10,9 @@ using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NUnitToMSTest.Rewriter;
+using NUnitToMSTestPackage.Utilities;
 using DTEProject = EnvDTE.Project;
-using Project = Microsoft.CodeAnalysis.Project;
+using RoslynProject = Microsoft.CodeAnalysis.Project;
 using TPL = System.Threading.Tasks;
 
 namespace NUnitToMSTestPackage.Commands
@@ -27,12 +28,17 @@ namespace NUnitToMSTestPackage.Commands
 
         private readonly Package m_package;
         private readonly ErrorListProvider m_errorListProvider;
+        private readonly IVsOutputWindowPane m_outputWindowPane;
+        private readonly IVsStatusbar m_statusbar;
         private readonly IOptions m_options;
 
-        private TransformProjectFilesCommand(Package package, ErrorListProvider errorListProvider, IOptions options)
+        private TransformProjectFilesCommand(Package package, ErrorListProvider errorListProvider,
+            IVsOutputWindowPane outputWindowPane, IVsStatusbar statusbar, IOptions options)
         {
             m_package = package ?? throw new ArgumentNullException(nameof(package));
             m_errorListProvider = errorListProvider ?? throw new ArgumentNullException(nameof(errorListProvider));
+            m_outputWindowPane = outputWindowPane ?? throw new ArgumentNullException(nameof(outputWindowPane));
+            m_statusbar = statusbar ?? throw new ArgumentNullException(nameof(statusbar));
             m_options = options ?? throw new ArgumentNullException(nameof(options));
 
             if (ServiceProvider.GetService(typeof(IMenuCommandService)) is OleMenuCommandService commandService)
@@ -46,9 +52,22 @@ namespace NUnitToMSTestPackage.Commands
         public static TransformProjectFilesCommand Instance { get; private set; }
         private IServiceProvider ServiceProvider => m_package;
 
-        public static void Initialize(Package package, ErrorListProvider errorListProvider, IOptions options)
+        public static void Initialize(Package package, ErrorListProvider errorListProvider,
+            IVsOutputWindowPane outputWindowPane, IVsStatusbar statusbar, IOptions options)
         {
-            Instance = new TransformProjectFilesCommand(package, errorListProvider, options);
+            Instance = new TransformProjectFilesCommand(package, errorListProvider, outputWindowPane, statusbar, options);
+        }
+
+        private void OutputMessage(string text, StatusbarContext statusbar, int complete = 0, int total = 0)
+        {
+            m_outputWindowPane.OutputString(text);
+            if (statusbar != null)
+            {
+                if (total == 0)
+                    statusbar.Text = text;
+                else
+                    statusbar.UpdateProgress(text, complete, total);
+            }
         }
 
         /// <summary>
@@ -58,102 +77,143 @@ namespace NUnitToMSTestPackage.Commands
         /// <param name="e">The event args.</param>
         private async TPL.Task InvokeRefactoring(object sender, EventArgs e)
         {
-            try
+            using (var statusbar = new StatusbarContext(m_statusbar))
             {
-                bool diagnosticsWritten = false;
-                m_errorListProvider.Tasks.Clear();
-
-                var componentModel = (IComponentModel)ServiceProvider.GetService(typeof(SComponentModel));
-                var workspace = componentModel.GetService<VisualStudioWorkspace>();
-                var solution = workspace.CurrentSolution;
-                var newSolution = solution;
-
-                var selectedProject = GetSelectedProject();
-                if (selectedProject != null)
+                try
                 {
-                    var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.Name == selectedProject.Name);
+                    bool diagnosticsWritten = false;
+                    m_errorListProvider.Tasks.Clear();
+                    statusbar.Clear();
 
-                    if (project != null && IsSupportedProject(project))
+                    var componentModel = (IComponentModel)ServiceProvider.GetService(typeof(SComponentModel));
+                    var workspace = componentModel.GetService<VisualStudioWorkspace>();
+                    var solution = workspace.CurrentSolution;
+                    var newSolution = solution;
+
+                    var selectedProject = GetSelectedProject();
+                    if (selectedProject != null)
                     {
-                        var hierarchyItem = GetProjectHierarchyItem(selectedProject);
+                        var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.Name == selectedProject.Name);
 
-                        foreach (var documentId in GetSupportedDocumentIds(project))
+                        if (project != null && IsSupportedProject(project))
                         {
-                            var document = project.Documents.First(d => d.Id == documentId);
-                            N2MPackage.WriteToOutputPane($"Processing {document.FilePath}");
+                            var hierarchyItem = GetProjectHierarchyItem(selectedProject);
+                            var documentIds = GetSupportedDocumentIds(project);
+                            int total = CalculateStatusbarTotal(documentIds.Count());
+                            int complete = 1;
 
-                            var semanticModel = await document.GetSemanticModelAsync();
-                            var tree = await document.GetSyntaxTreeAsync();
-                            var rw = new NUnitToMSTestRewriter(semanticModel, m_options.TransformAsserts);
-                            var result = rw.Visit(tree.GetRoot());
-
-                            if (rw.Changed)
+                            OutputMessage($"Updating project {project.FilePath}.", statusbar);
+                            
+                            foreach (var documentId in documentIds)
                             {
-                                N2MPackage.WriteToOutputPane($"Saving changes in {document.FilePath}");
-                                var newDocument = document.WithSyntaxRoot(result);
-                                project = newDocument.Project;
-                                newSolution = project.Solution;
-                            }
+                                var document = project.Documents.First(d => d.Id == documentId);
+                                OutputMessage($"Processing {document.FilePath}", statusbar, complete, total);
 
-                            if (ProcessDiagnostics(rw, selectedProject, hierarchyItem))
-                                diagnosticsWritten = true;
-                        }
+                                var semanticModel = await document.GetSemanticModelAsync();
+                                var tree = await document.GetSyntaxTreeAsync();
+                                var rw = new NUnitToMSTestRewriter(semanticModel, m_options.TransformAsserts);
+                                var result = rw.Visit(tree.GetRoot());
 
-                        if (newSolution != solution)
-                        {
-                            N2MPackage.WriteToOutputPane($"Updating project {project.FilePath}.");
-
-                            if (m_options.MakeSureProjectFileHasUnitTestType)
-                            {
-                                project = new ProjectUpdater(project).Update();
-                                newSolution = project.Solution;
-                            }
-
-                            if (!workspace.TryApplyChanges(newSolution))
-                                N2MPackage.ShowErrorBox(ServiceProvider, "Changes not saved.");
-
-                            // This has to happen after "workspace.TryApplyChanges()", or some internal state
-                            // is off, and the apply changes fails.
-                            if (!string.IsNullOrWhiteSpace(m_options.MSTestPackageVersion))
-                            {
-                                using (var packageInstaller = PackageHandler.CreateHosted(selectedProject))
+                                if (rw.Changed)
                                 {
-                                    packageInstaller.AddPackage("MSTest.TestAdapter", m_options.MSTestPackageVersion);
-                                    packageInstaller.AddPackage("MSTest.TestFramework", m_options.MSTestPackageVersion);
+                                    OutputMessage($"Saving changes in {document.FilePath}", statusbar, complete, total);
+                                    var newDocument = document.WithSyntaxRoot(result);
+                                    project = newDocument.Project;
+                                    newSolution = project.Solution;
                                 }
+
+                                if (ProcessDiagnostics(rw, selectedProject, hierarchyItem))
+                                    diagnosticsWritten = true;
+
+                                complete++;
                             }
 
-                            if (m_options.UninstallNUnitPackages)
+                            if (newSolution != solution)
                             {
-                                using (var packageInstaller = PackageHandler.CreateHosted(selectedProject))
+                                if (m_options.MakeSureProjectFileHasUnitTestType)
                                 {
-                                    packageInstaller.RemovePackage("NUnit3Adapter");
-                                    packageInstaller.RemovePackage("NUnit.Console");
-                                    packageInstaller.RemovePackage("NUnit");
+                                    OutputMessage("Ensuring project compatibility", statusbar, ++complete, total);
+                                    project = new ProjectUpdater(project).Update();
+                                    newSolution = project.Solution;
                                 }
+
+                                if (!workspace.TryApplyChanges(newSolution))
+                                {
+                                    ServiceProvider.ShowErrorBox("Changes not saved.");
+                                }
+
+                                // This has to happen after "workspace.TryApplyChanges()", or some internal state
+                                // is off, and the apply changes fails. This is because the following modify the
+                                // project also/again.
+                                AddMSTestPackages(hierarchyItem, selectedProject, statusbar, ref complete, total);
+                                RemoveNUnitPackages(hierarchyItem, selectedProject, statusbar, ref complete, total);
                             }
                         }
                     }
-                }
 
-                if (diagnosticsWritten)
-                {
-                    m_errorListProvider.Show();
+                    if (diagnosticsWritten)
+                    {
+                        m_errorListProvider.Show();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                N2MPackage.ShowErrorBox(ServiceProvider, ex.ToString());
+                catch (Exception ex)
+                {
+                    ServiceProvider.ShowErrorBox(ex.ToString());
+                }
             }
         }
 
+        private int CalculateStatusbarTotal(int documentCount)
+        {
+            int total = documentCount;
+            if (m_options.MakeSureProjectFileHasUnitTestType)
+                total++;
+            if (m_options.UninstallNUnitPackages)
+                total++;
+            if (m_options.MSTestPackageVersion != null)
+                total++;
 
+            return total;
+        }
+
+        private void RemoveNUnitPackages(IVsHierarchy project, DTEProject selectedProject, StatusbarContext statusbar, ref int complete, int total)
+        {
+            if (m_options.UninstallNUnitPackages)
+            {
+                OutputMessage("Removing NUnit packages", statusbar, ++complete, total);
+                using (var packageInstaller = PackageHandler.CreateHosted(selectedProject, m_outputWindowPane))
+                {
+                    packageInstaller.ReportWarning = msg =>
+                    {
+                        var diag = Diagnostic.Create(DiagnosticsDescriptors.CannotRemovePackage, Location.None, msg);
+                        m_errorListProvider.Tasks.Add(ToErrorTask(diag, selectedProject, project));
+                    };
+
+                    packageInstaller.RemovePackage("NUnit3Adapter");
+                    packageInstaller.RemovePackage("NUnit.Console");
+                    packageInstaller.RemovePackage("NUnit");
+                }
+            }
+        }
+
+        private void AddMSTestPackages(IVsHierarchy project, DTEProject selectedProject, StatusbarContext statusbar, ref int complete, int total)
+        {
+            if (!string.IsNullOrWhiteSpace(m_options.MSTestPackageVersion))
+            {
+                OutputMessage("Adding MSTest packages", statusbar, ++complete, total);
+                using (var packageInstaller = PackageHandler.CreateHosted(selectedProject, m_outputWindowPane))
+                {
+                    packageInstaller.AddPackage("MSTest.TestAdapter", m_options.MSTestPackageVersion);
+                    packageInstaller.AddPackage("MSTest.TestFramework", m_options.MSTestPackageVersion);
+                }
+            }
+        }
 
         private bool ProcessDiagnostics(NUnitToMSTestRewriter rw, DTEProject selectedProject, IVsHierarchy hierarchyItem)
         {
             foreach (var diag in rw.Diagnostics)
             {
-                N2MPackage.WriteToOutputPane(diag.ToString());
+                OutputMessage(diag.ToString(), null);
                 m_errorListProvider.Tasks.Add(ToErrorTask(diag, selectedProject, hierarchyItem));
                 return true;
             }
@@ -168,12 +228,12 @@ namespace NUnitToMSTestPackage.Commands
             return hierarchyItem;
         }
 
-        private static bool IsSupportedProject(Project project)
+        private static bool IsSupportedProject(RoslynProject project)
         {
             return project.HasDocuments && project.Language == "C#";
         }
 
-        private static IEnumerable<DocumentId> GetSupportedDocumentIds(Project project)
+        private static IEnumerable<DocumentId> GetSupportedDocumentIds(RoslynProject project)
         {
             return project.Documents
                 .Where(document => document.SupportsSemanticModel &&

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using EnvDTE;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NUnitToMSTestPackage.Commands;
+using NUnitToMSTestPackage.Utilities;
 using IServiceProvider = System.IServiceProvider;
 
 namespace NUnitToMSTestPackage
@@ -17,8 +19,10 @@ namespace NUnitToMSTestPackage
     public sealed class N2MPackage : Package
     {
         public const string PackageGuidString = "0b2c9d6e-4940-49e0-8c7d-6e75efc2f552";
-     
+        private const string OutputWindowPaneGuid = "8E489D7F-EE9B-4233-9708-2430B2CCE9BE";
+        
         private ErrorListProvider m_errorListProvider;
+        private IVsOutputWindowPane m_outputWindowPane;
 
         public N2MPackage()
         {
@@ -33,8 +37,10 @@ namespace NUnitToMSTestPackage
             base.Initialize();
 
             Options.Initialize(this);
+            var statusbar = GetService(typeof(SVsStatusbar)) as IVsStatusbar;
             m_errorListProvider = new ErrorListProvider(this);
-            TransformProjectFilesCommand.Initialize(this, m_errorListProvider, Options.Instance);
+            m_outputWindowPane = OutputWindowPaneHelper.CreateHosted("NUnit To MSTest", new Guid(OutputWindowPaneGuid));
+            TransformProjectFilesCommand.Initialize(this, m_errorListProvider, m_outputWindowPane, statusbar, Options.Instance);
         }
 
         protected override void Dispose(bool disposing)
@@ -47,53 +53,6 @@ namespace NUnitToMSTestPackage
             finally
             {
                 base.Dispose(disposing);
-            }
-        }
-
-        public static int ShowInfoBox(IServiceProvider serviceProvider, string message)
-        {
-            return VsShellUtilities.ShowMessageBox(
-                serviceProvider,
-                message,
-                "NUnit To MSTest",
-                OLEMSGICON.OLEMSGICON_INFO,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-        }
-
-        public static int ShowErrorBox(IServiceProvider serviceProvider, string message)
-        {
-            return VsShellUtilities.ShowMessageBox(
-                serviceProvider,
-                message,
-                "NUnit To MSTest",
-                OLEMSGICON.OLEMSGICON_CRITICAL,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-        }
-
-        private static readonly object s_outputLock = new object();
-        private static readonly string s_outputWindowGuid = "8E489D7F-EE9B-4233-9708-2430B2CCE9BE";
-        private static IVsOutputWindow s_outputWindow;
-        private static IVsOutputWindowPane s_outputPane;
-
-        public static void WriteToOutputPane(object obj)
-        {
-            lock (s_outputLock)
-            {
-                if (s_outputWindow == null)
-                {
-                    var guid = new Guid(s_outputWindowGuid);
-                    s_outputWindow = (IVsOutputWindow)GetGlobalService(typeof(SVsOutputWindow));
-                    s_outputWindow.CreatePane(ref guid, "NUnit To MSTest", 1, 1);
-                    s_outputWindow.GetPane(ref guid, out var pane);
-                    s_outputPane = pane;
-                }
-
-                string str = obj?.ToString() ?? "";
-                if (!str.EndsWith("\n", StringComparison.OrdinalIgnoreCase))
-                    str += "\n";
-                s_outputPane.OutputStringThreadSafe(str);
             }
         }
     }

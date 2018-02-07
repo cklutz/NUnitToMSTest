@@ -65,5 +65,13 @@ namespace NUnitToMSTest.Rewriter
             AttributeRewriteCategory,
             DiagnosticSeverity.Warning,
             true);
+
+        public static readonly DiagnosticDescriptor CannotRemovePackage = new DiagnosticDescriptor(
+            GetId(8),
+            nameof(CannotRemovePackage),
+            "{0}",
+            AttributeRewriteCategory,
+            DiagnosticSeverity.Warning,
+            true);
     }
 }

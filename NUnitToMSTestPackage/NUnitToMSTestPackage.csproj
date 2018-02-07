@@ -54,16 +54,19 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Commands\PackageHandler.cs" />
+    <Compile Include="Utilities\PackageHandler.cs" />
     <Compile Include="Commands\ProjectUpdater.cs" />
     <Compile Include="OptionPageGrid.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Options.cs" />
+    <Compile Include="Utilities\OutputWindowPaneHelper.cs" />
     <Compile Include="Refactorings\NUnitToMSTestCodeRefactoringProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Commands\TransformProjectFilesCommand.cs" />
     <Compile Include="N2MPackage.cs" />
+    <Compile Include="Utilities\MessageBoxExtensions.cs" />
+    <Compile Include="Utilities\StatusbarContext.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
