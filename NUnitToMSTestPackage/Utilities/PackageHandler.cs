@@ -122,7 +122,7 @@ namespace NUnitToMSTestPackage.Utilities
             return true;
         }
 
-        public bool AddPackage(string packageId, string version, string source = null)
+        public bool AddPackage(string packageId, string version = null, string source = null)
         {
             if (m_packageServices.IsPackageInstalled(m_project, packageId))
             {

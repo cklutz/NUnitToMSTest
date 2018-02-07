@@ -2,11 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Linq;
-using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.ComponentModelHost;
-using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NUnitToMSTest.Rewriter;
@@ -32,7 +28,8 @@ namespace NUnitToMSTestPackage.Commands
         private readonly IVsStatusbar m_statusbar;
         private readonly IOptions m_options;
 
-        private TransformProjectFilesCommand(Package package, ErrorListProvider errorListProvider,
+        private TransformProjectFilesCommand(
+            Package package, ErrorListProvider errorListProvider,
             IVsOutputWindowPane outputWindowPane, IVsStatusbar statusbar, IOptions options)
         {
             m_package = package ?? throw new ArgumentNullException(nameof(package));
@@ -52,7 +49,8 @@ namespace NUnitToMSTestPackage.Commands
         public static TransformProjectFilesCommand Instance { get; private set; }
         private IServiceProvider ServiceProvider => m_package;
 
-        public static void Initialize(Package package, ErrorListProvider errorListProvider,
+        public static void Initialize(
+            Package package, ErrorListProvider errorListProvider,
             IVsOutputWindowPane outputWindowPane, IVsStatusbar statusbar, IOptions options)
         {
             Instance = new TransformProjectFilesCommand(package, errorListProvider, outputWindowPane, statusbar, options);
@@ -85,25 +83,24 @@ namespace NUnitToMSTestPackage.Commands
                     m_errorListProvider.Tasks.Clear();
                     statusbar.Clear();
 
-                    var componentModel = (IComponentModel)ServiceProvider.GetService(typeof(SComponentModel));
-                    var workspace = componentModel.GetService<VisualStudioWorkspace>();
+                    var workspace = ServiceProvider.GetRoslynVisualStudioWorkspace();
                     var solution = workspace.CurrentSolution;
                     var newSolution = solution;
 
-                    var selectedProject = GetSelectedProject();
+                    var selectedProject = VSExtensions.GetSelectedProject();
                     if (selectedProject != null)
                     {
-                        var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => p.Name == selectedProject.Name);
+                        var project = solution.Projects.FirstOrDefault(p => p.Name == selectedProject.Name);
 
                         if (project != null && IsSupportedProject(project))
                         {
-                            var hierarchyItem = GetProjectHierarchyItem(selectedProject);
+                            //var hierarchyItem = GetProjectHierarchyItem(selectedProject);
                             var documentIds = GetSupportedDocumentIds(project);
                             int total = CalculateStatusbarTotal(documentIds.Count());
                             int complete = 1;
 
                             OutputMessage($"Updating project {project.FilePath}.", statusbar);
-                            
+
                             foreach (var documentId in documentIds)
                             {
                                 var document = project.Documents.First(d => d.Id == documentId);
@@ -122,7 +119,7 @@ namespace NUnitToMSTestPackage.Commands
                                     newSolution = project.Solution;
                                 }
 
-                                if (ProcessDiagnostics(rw, selectedProject, hierarchyItem))
+                                if (ProcessDiagnostics(rw, selectedProject))
                                     diagnosticsWritten = true;
 
                                 complete++;
@@ -145,8 +142,8 @@ namespace NUnitToMSTestPackage.Commands
                                 // This has to happen after "workspace.TryApplyChanges()", or some internal state
                                 // is off, and the apply changes fails. This is because the following modify the
                                 // project also/again.
-                                AddMSTestPackages(hierarchyItem, selectedProject, statusbar, ref complete, total);
-                                RemoveNUnitPackages(hierarchyItem, selectedProject, statusbar, ref complete, total);
+                                AddMSTestPackages(selectedProject, statusbar, ref complete, total);
+                                RemoveNUnitPackages(selectedProject, statusbar, ref complete, total);
                             }
                         }
                     }
@@ -169,16 +166,16 @@ namespace NUnitToMSTestPackage.Commands
             if (m_options.MakeSureProjectFileHasUnitTestType)
                 total++;
             if (m_options.UninstallNUnitPackages)
-                total++;
-            if (m_options.MSTestPackageVersion != null)
-                total++;
+                total += m_options.NUnitPackages?.Length ?? 0;
+            if (m_options.InstallMSTestPackages)
+                total += m_options.MSTestPackages?.Length ?? 0;
 
             return total;
         }
 
-        private void RemoveNUnitPackages(IVsHierarchy project, DTEProject selectedProject, StatusbarContext statusbar, ref int complete, int total)
+        private void RemoveNUnitPackages(DTEProject selectedProject, StatusbarContext statusbar, ref int complete, int total)
         {
-            if (m_options.UninstallNUnitPackages)
+            if (m_options.UninstallNUnitPackages && m_options.NUnitPackages?.Length > 0)
             {
                 OutputMessage("Removing NUnit packages", statusbar, ++complete, total);
                 using (var packageInstaller = PackageHandler.CreateHosted(selectedProject, m_outputWindowPane))
@@ -186,46 +183,50 @@ namespace NUnitToMSTestPackage.Commands
                     packageInstaller.ReportWarning = msg =>
                     {
                         var diag = Diagnostic.Create(DiagnosticsDescriptors.CannotRemovePackage, Location.None, msg);
-                        m_errorListProvider.Tasks.Add(ToErrorTask(diag, selectedProject, project));
+                        m_errorListProvider.AddTask(diag, selectedProject);
                     };
 
-                    packageInstaller.RemovePackage("NUnit3Adapter");
-                    packageInstaller.RemovePackage("NUnit.Console");
-                    packageInstaller.RemovePackage("NUnit");
+                    foreach (var package in m_options.NUnitPackages)
+                    {
+                        packageInstaller.RemovePackage(package.Trim());
+                    }
                 }
             }
         }
 
-        private void AddMSTestPackages(IVsHierarchy project, DTEProject selectedProject, StatusbarContext statusbar, ref int complete, int total)
+        private void AddMSTestPackages(DTEProject selectedProject, StatusbarContext statusbar, ref int complete, int total)
         {
-            if (!string.IsNullOrWhiteSpace(m_options.MSTestPackageVersion))
+            if (m_options.InstallMSTestPackages && m_options.MSTestPackages?.Length > 0)
             {
                 OutputMessage("Adding MSTest packages", statusbar, ++complete, total);
                 using (var packageInstaller = PackageHandler.CreateHosted(selectedProject, m_outputWindowPane))
                 {
-                    packageInstaller.AddPackage("MSTest.TestAdapter", m_options.MSTestPackageVersion);
-                    packageInstaller.AddPackage("MSTest.TestFramework", m_options.MSTestPackageVersion);
+                    foreach (var package in m_options.MSTestPackages)
+                    {
+                        var spec = package.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+                        if (spec.Count > 1)
+                        {
+                            packageInstaller.AddPackage(spec[0], spec[1]);
+                        }
+                        else
+                        {
+                            packageInstaller.AddPackage(spec[0]);
+                        }
+                    }
                 }
             }
         }
 
-        private bool ProcessDiagnostics(NUnitToMSTestRewriter rw, DTEProject selectedProject, IVsHierarchy hierarchyItem)
+        private bool ProcessDiagnostics(NUnitToMSTestRewriter rw, DTEProject selectedProject)
         {
             foreach (var diag in rw.Diagnostics)
             {
                 OutputMessage(diag.ToString(), null);
-                m_errorListProvider.Tasks.Add(ToErrorTask(diag, selectedProject, hierarchyItem));
+                m_errorListProvider.AddTask(diag, selectedProject);
                 return true;
             }
 
             return false;
-        }
-
-        private static IVsHierarchy GetProjectHierarchyItem(DTEProject selectedProject)
-        {
-            ((IVsSolution)Package.GetGlobalService(typeof(IVsSolution))).GetProjectOfUniqueName(selectedProject.UniqueName,
-                out var hierarchyItem);
-            return hierarchyItem;
         }
 
         private static bool IsSupportedProject(RoslynProject project)
@@ -240,76 +241,6 @@ namespace NUnitToMSTestPackage.Commands
                                    document.SupportsSyntaxTree &&
                                    document.SourceCodeKind == SourceCodeKind.Regular)
                 .Select(d => d.Id);
-        }
-
-        private ErrorTask ToErrorTask(Diagnostic diag, DTEProject project, IVsHierarchy hierarchyItem)
-        {
-            TaskErrorCategory category;
-            switch (diag.Severity)
-            {
-                case DiagnosticSeverity.Hidden:
-                    category = TaskErrorCategory.Message;
-                    break;
-                case DiagnosticSeverity.Info:
-                    category = TaskErrorCategory.Message;
-                    break;
-                case DiagnosticSeverity.Warning:
-                    category = TaskErrorCategory.Warning;
-                    break;
-                case DiagnosticSeverity.Error:
-                    category = TaskErrorCategory.Error;
-                    break;
-                default:
-                    category = TaskErrorCategory.Message;
-                    break;
-            }
-
-            var error = new ErrorTask
-            {
-                ErrorCategory = category,
-                CanDelete = true,
-                Category = TaskCategory.Misc,
-                Text = diag.GetMessage(),
-                Line = diag.Location.GetLineSpan().StartLinePosition.Line,
-                Column = diag.Location.GetLineSpan().StartLinePosition.Character,
-                Document = diag.Location.GetLineSpan().Path,
-                HierarchyItem = hierarchyItem
-            };
-
-            error.Navigate += (sender, e) =>
-            {
-                //there are two Bugs in the errorListProvider.Navigate method:
-                //    Line number needs adjusting
-                //    Column is not shown
-                error.Line++;
-                m_errorListProvider.Navigate(error, new Guid(EnvDTE.Constants.vsViewKindCode));
-                error.Line--;
-            };
-
-            return error;
-        }
-
-        private DTEProject GetSelectedProject()
-        {
-            Object selectedObject = null;
-            IVsMonitorSelection monitorSelection =
-                (IVsMonitorSelection)Package.GetGlobalService(
-                    typeof(SVsShellMonitorSelection));
-
-            monitorSelection.GetCurrentSelection(out var hierarchyPointer,
-                out var projectItemId, out _, out _);
-
-            if (Marshal.GetTypedObjectForIUnknown(hierarchyPointer,
-                typeof(IVsHierarchy)) is IVsHierarchy selectedHierarchy)
-            {
-                ErrorHandler.ThrowOnFailure(selectedHierarchy.GetProperty(
-                    projectItemId,
-                    (int)__VSHPROPID.VSHPROPID_ExtObject,
-                    out selectedObject));
-            }
-
-            DTEProject selectedProject = selectedObject as DTEProject;
-            return selectedProject;
         }
     }
 }

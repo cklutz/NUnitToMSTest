@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using EnvDTE;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NUnitToMSTestPackage.Commands;
 using NUnitToMSTestPackage.Utilities;
-using IServiceProvider = System.IServiceProvider;
 
 namespace NUnitToMSTestPackage
 {
@@ -15,7 +13,7 @@ namespace NUnitToMSTestPackage
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(PackageGuidString)]
     [ProvideAutoLoad(VSConstants.UICONTEXT.NoSolution_string)]
-    [ProvideOptionPage(typeof(OptionPageGrid), "NUnit To MSTest", "NUnit To MSTest", 0, 0, true)]
+    [ProvideOptionPage(typeof(OptionPageGrid), PackageConstants.Title, PackageConstants.Title, 0, 0, true)]
     public sealed class N2MPackage : Package
     {
         public const string PackageGuidString = "0b2c9d6e-4940-49e0-8c7d-6e75efc2f552";
@@ -39,7 +37,7 @@ namespace NUnitToMSTestPackage
             Options.Initialize(this);
             var statusbar = GetService(typeof(SVsStatusbar)) as IVsStatusbar;
             m_errorListProvider = new ErrorListProvider(this);
-            m_outputWindowPane = OutputWindowPaneHelper.CreateHosted("NUnit To MSTest", new Guid(OutputWindowPaneGuid));
+            m_outputWindowPane = OutputWindowPaneHelper.CreateHosted(PackageConstants.Title, new Guid(OutputWindowPaneGuid));
             TransformProjectFilesCommand.Initialize(this, m_errorListProvider, m_outputWindowPane, statusbar, Options.Instance);
         }
 

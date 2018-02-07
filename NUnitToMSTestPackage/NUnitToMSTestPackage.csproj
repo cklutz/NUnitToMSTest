@@ -54,6 +54,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="PackageConstants.cs" />
     <Compile Include="Utilities\PackageHandler.cs" />
     <Compile Include="Commands\ProjectUpdater.cs" />
     <Compile Include="OptionPageGrid.cs">
@@ -67,6 +68,7 @@
     <Compile Include="N2MPackage.cs" />
     <Compile Include="Utilities\MessageBoxExtensions.cs" />
     <Compile Include="Utilities\StatusbarContext.cs" />
+    <Compile Include="Utilities\VSExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
