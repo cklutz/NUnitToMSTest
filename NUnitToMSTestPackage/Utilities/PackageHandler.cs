@@ -15,7 +15,6 @@ namespace NUnitToMSTestPackage.Utilities
         private readonly IVsPackageUninstaller m_uninstaller;
         private readonly IVsPackageInstallerEvents m_events;
         private readonly IVsOutputWindowPane m_outputWindowPane;
-        private readonly ErrorListProvider m_errorListProvider;
         private bool m_disposed;
 
         public static PackageHandler CreateHosted(EnvDTE.Project project, IVsOutputWindowPane outputWindowPane)

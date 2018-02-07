@@ -15,26 +15,26 @@ Assert.LessOrEqual(a1, a2);
 Assert.Greater(a1, a2);
 Assert.GreaterOrEqual(a1, a2);
 
-	Assert.IsTrue(a1 < a2)
-	Assert.IsTrue(a1 <= a2)
-	Assert.IsTrue(a1 > a2)
-	Assert.IsTrue(a1 >= a2)
+    Assert.IsTrue(a1 < a2)
+    Assert.IsTrue(a1 <= a2)
+    Assert.IsTrue(a1 > a2)
+    Assert.IsTrue(a1 >= a2)
 
 Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
 
-	CollectionAssert.AreEqual(actual.ToList(), expected.ToList(), new MyComparer());
-	
+    CollectionAssert.AreEqual(actual.ToList(), expected.ToList(), new MyComparer());
+    
 Assert.That(actual.ToList(), Is.EquivalentTo(expected.ToList()).Using(new MyComparer()));
 
-	CollectionAssert.AreEquivalent() does not support a custom comparer.
+    CollectionAssert.AreEquivalent() does not support a custom comparer.
 
 Assert.That(actual, Is.EqualTo(expected).Using(new MyComparer()));
 
     Assert.*Equal() does not support using a custom comparer.
 
-	Workaround:
+    Workaround:
 
-	CollectionAssert.AreEqual(new [] { actual }, new [] { expected }, new MyComparer());
+    CollectionAssert.AreEqual(new [] { actual }, new [] { expected }, new MyComparer());
 
 Assert.That(() => result, Is.Not.Null);
 Assert.That(() => result.Foo, Is.EqualTo(options.Foo));
