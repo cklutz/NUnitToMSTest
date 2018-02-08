@@ -148,6 +148,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Asserts\MultipleSourcesTests.cs" />
+    <Compile Include="Asserts\NestedTests.cs" />
     <Compile Include="Asserts\BooleanThatTests.cs" />
     <Compile Include="Asserts\GreaterLessOrEqualTests.cs" />
     <Compile Include="Asserts\NullNotNullTests.cs" />

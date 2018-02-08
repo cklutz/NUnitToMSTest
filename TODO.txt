@@ -1,5 +1,23 @@
 
 -----------------------------------------------------------------------------------------
+Bugs?
+-----------------------------------------------------------------------------------------
+
+[TestMethod, TestCaseSource(typeof(TD), "xxx")]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				 not transformed
+
+[TestInitialize], [TestCleanup]
+
+	"Method <FOO> has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter.
+	Additionally, if you are using async-await in method then return-type must be Task."
+
+[ClassInitialize], [ClassCleanup]
+
+	"Method <FOO> has wrong signature. The method must be static, public, does not return a value and have a parameter of type TestContext.
+	Additionally, if you are using async-await in method then return-type must be Task."
+
+-----------------------------------------------------------------------------------------
 Package
 -----------------------------------------------------------------------------------------
 
@@ -9,6 +27,18 @@ and no contained files are unsaved, etc.
 -----------------------------------------------------------------------------------------
 Asserts
 -----------------------------------------------------------------------------------------
+
+Assert.IsInstanceOfType, ...
+
+	Assert.IsInstanceOfType(exp, type)
+
+CollectionAssert.AreEqual(ICollection, ICollection)
+
+	CollectionAssert.AreEqual(v1?.ToArray(), v2?.ToArray())
+
+Assert.AreEqual(<collection type>, <collection type>)
+
+	CollectionAssert.AreEqual( ... )
 
 Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
 

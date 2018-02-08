@@ -226,9 +226,6 @@ public class FooTests
 }
 ";
 
-            
-            //Assert.ThrowsException<OutOfMemoryException>(() => Dummy());
-            //Assert.ThrowsException<OutOfMemoryException>(() => Dummy());
             const string expected = @"
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 public class FooTests

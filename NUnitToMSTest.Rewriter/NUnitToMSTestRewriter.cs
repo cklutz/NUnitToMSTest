@@ -83,35 +83,38 @@ namespace NUnitToMSTest.Rewriter
             m_perMethodState.Reset(node);
 
             // Process nodes / children
-            node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node);
-
-            // Post processing
-            if (m_perMethodState.DataRowSeen)
+            node = base.VisitMethodDeclaration(node) as MethodDeclarationSyntax;
+            if (node != null)
             {
-                node = node.AddAttribute(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("DataTestMethod")));
-
-                if (node.AttributeLists.SelectMany(al => al.Attributes).All(a => a.Name.ToString() != "CLSCompliant"))
+                // Post processing
+                if (m_perMethodState.DataRowSeen)
                 {
-                    var clsCompliant = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("CLSCompliant"));
-                    clsCompliant = clsCompliant.WithArgumentList(SyntaxFactory.AttributeArgumentList(
-                        SyntaxFactory.SingletonSeparatedList(
+                    node = node.AddAttribute(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("DataTestMethod")));
+
+                    if (node.AttributeLists.SelectMany(al => al.Attributes)
+                        .All(a => a.Name.ToString() != "CLSCompliant"))
+                    {
+                        var clsCompliant = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("CLSCompliant"));
+                        clsCompliant = clsCompliant.WithArgumentList(SyntaxFactory.AttributeArgumentList(
+                            SyntaxFactory.SingletonSeparatedList(
                                 SyntaxFactory.AttributeArgument(
                                     SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)))));
-                    node = node.AddAttribute(clsCompliant);
+                        node = node.AddAttribute(clsCompliant);
+                    }
+
+                    Changed = true;
                 }
 
-                Changed = true;
-            }
+                if (m_perMethodState.Description != null)
+                {
+                    var arguments = new SeparatedSyntaxList<AttributeArgumentSyntax>();
+                    arguments = arguments.Add(SyntaxFactory.AttributeArgument(m_perMethodState.Description));
+                    var description = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("Description"));
+                    description = description.WithArgumentList(SyntaxFactory.AttributeArgumentList(arguments));
 
-            if (m_perMethodState.Description != null)
-            {
-                var arguments = new SeparatedSyntaxList<AttributeArgumentSyntax>();
-                arguments = arguments.Add(SyntaxFactory.AttributeArgument(m_perMethodState.Description));
-                var description = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("Description"));
-                description = description.WithArgumentList(SyntaxFactory.AttributeArgumentList(arguments));
-
-                node = node.AddAttribute(description);
-                Changed = true;
+                    node = node.AddAttribute(description);
+                    Changed = true;
+                }
             }
 
             return node;
@@ -154,6 +157,11 @@ namespace NUnitToMSTest.Rewriter
                             .ConvertArgumentsToString(m_diagnostics, location);
                         break;
 
+                    case "NUnit.Framework.TimeoutAttribute":
+                        node = node.WithName(SyntaxFactory.IdentifierName("Timeout"))
+                            .WithoutArgumentList(m_diagnostics, location);
+                        Changed = true;
+                        break;
                     case "NUnit.Framework.TestFixtureAttribute":
                         node = node.WithName(SyntaxFactory.IdentifierName("TestClass"))
                             .WithoutArgumentList(m_diagnostics, location);
@@ -381,20 +389,45 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitInvocationExpression(InvocationExpressionSyntax node)
         {
-            base.VisitInvocationExpression(node);
-
             if (m_rewriteAsserts)
             {
-                node = HandleInvocationExpression(node);
+                try
+                {
+                    //
+                    // HACK: Sometimes we encounter nodes from a different Compilation unit.
+                    // TODO: How to we get a semantic model for them?
+                    // Currently, we simple ignore such nodes and continue.
+                    //
+                    SymbolInfo info;
+                    try
+                    {
+                        info = m_semanticModel.GetSymbolInfo(node);
+                    }
+                    catch (ArgumentException)
+                    {
+                        return base.VisitInvocationExpression(node);
+                    }
+
+                    var xnode = HandleInvocationExpression(node, info);
+
+                    if (xnode is InvocationExpressionSyntax inode)
+                    {
+                        xnode = base.VisitInvocationExpression(inode);
+                    }
+
+                    return xnode;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"On node > {node} <: {ex.Message}", ex);
+                }
             }
 
-            return node;
+            return base.VisitInvocationExpression(node);
         }
 
-        private InvocationExpressionSyntax HandleInvocationExpression(InvocationExpressionSyntax node)
+        private SyntaxNode HandleInvocationExpression(InvocationExpressionSyntax node, SymbolInfo info)
         {
-            var info = m_semanticModel.GetSymbolInfo(node);
-
             if ("NUnit.Framework.Assert".Equals(info.Symbol?.ContainingType.ToDisplayString()) &&
                 node.Expression is MemberAccessExpressionSyntax ma)
             {
@@ -443,6 +476,11 @@ namespace NUnitToMSTest.Rewriter
                         }
                     }
                 }
+                else if ("Throws".Equals(ma.Name?.ToString()))
+                {
+                    ma = ma.WithName(SyntaxFactory.IdentifierName("ThrowsException"));
+                    node = node.WithExpression(ma);
+                }
                 else if ("Null".Equals(ma.Name?.ToString()))
                 {
                     ma = ma.WithName(SyntaxFactory.IdentifierName("IsNull"));
@@ -451,6 +489,16 @@ namespace NUnitToMSTest.Rewriter
                 else if ("NotNull".Equals(ma.Name?.ToString()))
                 {
                     ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
+                    node = node.WithExpression(ma);
+                }
+                else if ("True".Equals(ma.Name?.ToString()))
+                {
+                    ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+                    node = node.WithExpression(ma);
+                }
+                else if ("False".Equals(ma.Name?.ToString()))
+                {
+                    ma = ma.WithName(SyntaxFactory.IdentifierName("IsFalse"));
                     node = node.WithExpression(ma);
                 }
                 else if ("Less".Equals(ma.Name?.ToString()) ||

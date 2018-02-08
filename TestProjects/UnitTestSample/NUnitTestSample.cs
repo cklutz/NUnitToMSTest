@@ -22,7 +22,6 @@ namespace UnitTestSample
         [TearDown]
         public void Cleanup()
         {
-
         }
 
         [OneTimeSetUp]
