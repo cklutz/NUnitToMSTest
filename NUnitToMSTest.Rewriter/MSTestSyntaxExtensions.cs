@@ -80,7 +80,7 @@ namespace NUnitToMSTest.Rewriter
                 case MatchType.Matches:
                     method = "Matches";
                     matchTypeArgument = SyntaxFactory.Argument(
-                        SyntaxExtensions.CreateInstance(typeof(Regex).FullName, 
+                        SyntaxExtensions.CreateInstance(typeof(Regex).FullName,
                             details.MatchTypeArguments.Arguments[0])).NormalizeWhitespace();
                     break;
                 case MatchType.EqualTo:
@@ -140,6 +140,15 @@ namespace NUnitToMSTest.Rewriter
             if (details.Inconclusive)
                 throw new InvalidOperationException();
 
+            // TODO: This doesn't work in practice, because Assert.ThrowsException<Exception>(),
+            // will fail if not exactly System.Exception is thrown.
+            // We would need to do something like this:
+            // try {
+            //     /* test */
+            //     Assert.Fail($"Expected exception of type {exceptionType}.");
+            // } catch (Exception ex) when (!(ex is AssertFailException)) {
+            //     Assert.IsInstanceOfType(ex, exceptionType);
+            // }
             return SyntaxFactory.InvocationExpression(
                     SyntaxFactory.MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,

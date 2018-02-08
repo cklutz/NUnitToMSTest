@@ -253,6 +253,19 @@ public class FooTests
         [TestMethod]
         public void TestThrowsInstanceOf()
         {
+            // TODO: This doesn't work in practice, because Assert.ThrowsException<Exception>(),
+            // will fail if not exactly System.Exception is thrown.
+            // We would need to do something like this:
+            // try {
+            //     /* test */
+            //     Assert.Fail($"Expected exception of type {exceptionType}.");
+            // } catch (Exception ex) when (!(ex is AssertFailException)) {
+            //     Assert.IsInstanceOfType(ex, exceptionType);
+            // }
+            // The "ex" variable name would need to be generated, so that it doesn't
+            // collide with an existing name in the same scope.
+#if false
+
             const string actual = @"
 using NUnit.Framework;
 public class FooTests
@@ -286,6 +299,7 @@ public class FooTests
                     Assert.AreEqual(0, rw.Diagnostics.Count());
                     Assert.AreEqual(expected, result.ToFullString());
                 });
+#endif
         }
 
         [TestMethod]

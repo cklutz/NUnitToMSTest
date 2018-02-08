@@ -5,17 +5,31 @@ Bugs?
 
 [TestMethod, TestCaseSource(typeof(TD), "xxx")]
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				 not transformed
+                 not transformed
 
 [TestInitialize], [TestCleanup]
 
-	"Method <FOO> has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter.
-	Additionally, if you are using async-await in method then return-type must be Task."
+    "Method <FOO> has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter.
+    Additionally, if you are using async-await in method then return-type must be Task."
 
 [ClassInitialize], [ClassCleanup]
 
-	"Method <FOO> has wrong signature. The method must be static, public, does not return a value and have a parameter of type TestContext.
-	Additionally, if you are using async-await in method then return-type must be Task."
+    "Method <FOO> has wrong signature. The method must be static, public, does not return a value and have a parameter of type TestContext.
+    Additionally, if you are using async-await in method then return-type must be Task."
+
+
+Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMemoryException));
+
+    This doesn't work in practice, because Assert.ThrowsException<Exception>(),
+    will fail if not exactly System.Exception is thrown.
+    We would need to do something like this:
+    try {
+        /* test */
+        Assert.Fail($"Expected exception of type {exceptionType}.");
+    } catch (Exception ex) when (!(ex is AssertFailException)) {
+        Assert.IsInstanceOfType(ex, exceptionType);
+    }
+
 
 -----------------------------------------------------------------------------------------
 Package
@@ -30,15 +44,15 @@ Asserts
 
 Assert.IsInstanceOfType, ...
 
-	Assert.IsInstanceOfType(exp, type)
+    Assert.IsInstanceOfType(exp, type)
 
 CollectionAssert.AreEqual(ICollection, ICollection)
 
-	CollectionAssert.AreEqual(v1?.ToArray(), v2?.ToArray())
+    CollectionAssert.AreEqual(v1?.ToArray(), v2?.ToArray())
 
 Assert.AreEqual(<collection type>, <collection type>)
 
-	CollectionAssert.AreEqual( ... )
+    CollectionAssert.AreEqual( ... )
 
 Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
 

@@ -461,13 +461,22 @@ namespace NUnitToMSTest.Rewriter
                                     .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
                             }
                         }
-                        else if (TryGetExceptionDetails(secondArgument, "InstanceOf", details) &&
-                                 !details.Inconclusive)
-                        {
-                            node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression,
-                                    details, remainingArguments)
-                                .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
-                        }
+                        // TODO: This doesn't work in practice, because Assert.ThrowsException<Exception>(),
+                        // will fail if not exactly System.Exception is thrown.
+                        // We would need to do something like this:
+                        // try {
+                        //     /* test */
+                        //     Assert.Fail($"Expected exception of type {exceptionType}.");
+                        // } catch (Exception ex) when (!(ex is AssertFailException)) {
+                        //     Assert.IsInstanceOfType(ex, exceptionType);
+                        // }
+                        //else if (TryGetExceptionDetails(secondArgument, "InstanceOf", details) &&
+                        //         !details.Inconclusive)
+                        //{
+                        //    node = MSTestSyntaxFactory.ThrowsExceptionInstanceOfSyntax(firstArgument.Expression,
+                        //            details, remainingArguments)
+                        //        .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
+                        //}
                         else if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
                         {
                             // A simple ==> Assert.That(<boolean expression>); 
