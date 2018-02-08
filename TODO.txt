@@ -10,16 +10,6 @@ and no contained files are unsaved, etc.
 Asserts
 -----------------------------------------------------------------------------------------
 
-Assert.Less(a1, a2);
-Assert.LessOrEqual(a1, a2);
-Assert.Greater(a1, a2);
-Assert.GreaterOrEqual(a1, a2);
-
-    Assert.IsTrue(a1 < a2, $"expected <{a1}>  <  <{a2}>. " <+ originalMessage if any.>)
-    Assert.IsTrue(a1 <= a2, $"expected <{a1}>  <=  <{a2}>. " <+ originalMessage if any.>)
-    Assert.IsTrue(a1 > a2, $"expected <{a1}>  >  <{a2}>. " <+ originalMessage if any.>)
-    Assert.IsTrue(a1 >= a2, $"expected <{a1}>  >=  <{a2}>. " <+ originalMessage if any.>)
-
 Assert.That(actual.ToList(), Is.EqualTo(expected.ToList()).Using(new MyComparer()));
 
     CollectionAssert.AreEqual(actual.ToList(), expected.ToList(), new MyComparer());

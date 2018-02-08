@@ -196,9 +196,7 @@ namespace NUnitToMSTest.Rewriter
                     var existingToken = entry.Expression.GetFirstToken();
                     diagnostics?.Add(Diagnostic.Create(DiagnosticsDescriptors.ConvertedArgumentValueToString, node.GetLocation(location), existingToken.ValueText));
 
-                    var token = SyntaxFactory.Token(s_singleWhitespace, SyntaxKind.StringLiteralToken,
-                        "\"" + existingToken.Text + "\"", existingToken.ValueText, SyntaxTriviaList.Empty);
-                    var newEntry = entry.WithExpression(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression).WithToken(token));
+                    var newEntry = entry.WithExpression(ToLiteralExpression(existingToken.Text, s_singleWhitespace, SyntaxTriviaList.Empty));
                     newList = newList.Add(newEntry);
                 }
                 else
@@ -208,6 +206,17 @@ namespace NUnitToMSTest.Rewriter
             }
 
             return node.WithArgumentList(SyntaxFactory.AttributeArgumentList(newList));
+        }
+
+        public static LiteralExpressionSyntax ToLiteralExpression(this string str)
+        {
+            return ToLiteralExpression(str, SyntaxTriviaList.Empty, SyntaxTriviaList.Empty);
+        }
+
+        public static LiteralExpressionSyntax ToLiteralExpression(this string str, SyntaxTriviaList leading, SyntaxTriviaList trailing)
+        {
+            var token = SyntaxFactory.Token(leading, SyntaxKind.StringLiteralToken, "\"" + str.Replace("\"", "\\\"") + "\"", str, trailing);
+            return SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression).WithToken(token);
         }
 
         public static MethodDeclarationSyntax AddAttribute(this MethodDeclarationSyntax node, AttributeSyntax attr)

@@ -453,7 +453,92 @@ namespace NUnitToMSTest.Rewriter
                     ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
                     node = node.WithExpression(ma);
                 }
+                else if ("Less".Equals(ma.Name?.ToString()) ||
+                         "LessOrEqual".Equals(ma.Name?.ToString()) ||
+                         "Greater".Equals(ma.Name?.ToString()) ||
+                         "GreaterOrEqual".Equals(ma.Name?.ToString()))
+                {
+                    node = TransformGreaterLess(node, ma);
+                }
             }
+
+            return node;
+        }
+
+        private static InvocationExpressionSyntax TransformGreaterLess(InvocationExpressionSyntax node,
+            MemberAccessExpressionSyntax ma)
+        {
+            string symbolic;
+            SyntaxKind compareOp;
+            switch (ma.Name?.ToString())
+            {
+                case "Less":
+                    compareOp = SyntaxKind.LessThanExpression;
+                    symbolic = "less than";
+                    break;
+                case "LessOrEqual":
+                    compareOp = SyntaxKind.LessThanOrEqualExpression;
+                    symbolic = "less than or equal to";
+                    break;
+                case "Greater":
+                    compareOp = SyntaxKind.GreaterThanExpression;
+                    symbolic = "greater than";
+                    break;
+                case "GreaterOrEqual":
+                    compareOp = SyntaxKind.GreaterThanOrEqualExpression;
+                    symbolic = "greater than or equal to";
+                    break;
+                default:
+                    return node;
+            }
+
+            if (node.ArgumentList == null || node.ArgumentList.Arguments.Count < 2)
+            {
+                return node;
+            }
+
+            var arg0 = node.ArgumentList.Arguments[0].Expression;
+            var arg1 = node.ArgumentList.Arguments[1].Expression;
+
+            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+            argList = argList.Add(SyntaxFactory.Argument(
+                SyntaxFactory.BinaryExpression(compareOp, arg0, arg1)).NormalizeWhitespace());
+
+            //
+            // Create a helpful message, since the actual values being compared are not visible
+            // in the standard assertion message anymore (obviously, since we use Assert.IsTrue()).
+            //
+            // Note that we insert the textual values of the operands, rather than calling them
+            // again at runtime. I.e. for something like this:
+            //     Assert.Less(Func(), 42)
+            // we generate
+            //     Assert.IsTrue(Func() < 42, "Expected <Func()> to be less than <42>.")
+            // rather than
+            //     Assert.IsTrue(Func() < 42, "Expected <{0}> to be less than <{1}>.", Func(), 42)
+            //
+            // We cannot simply invoke the arguments again, should they not be literals.
+            // They may have unintended side effects when being called multiple times.
+            //
+            var message = string.Format("Expected <{0}> to be {1} <{2}>.", arg0, symbolic, arg1);
+            if (node.ArgumentList.Arguments.Count == 2)
+            {
+                argList = argList.Add(SyntaxFactory.Argument(message.ToLiteralExpression()));
+            }
+            else if (node.ArgumentList.Arguments.Count > 2)
+            {
+                var arg2 = node.ArgumentList.Arguments[2];
+                arg2 = SyntaxFactory.Argument(SyntaxFactory.BinaryExpression(
+                    SyntaxKind.AddExpression,
+                    message.ToLiteralExpression(),
+                    arg2.Expression));
+
+                argList = argList.Add(arg2);
+                argList = argList.AddRange(node.ArgumentList.Arguments.Skip(3));
+            }
+
+            ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+            node = node.WithExpression(ma).WithArgumentList(
+                SyntaxFactory.ArgumentList(argList).NormalizeWhitespace());
 
             return node;
         }
