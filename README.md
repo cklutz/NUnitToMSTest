@@ -10,4 +10,5 @@ Feature Overview:
 * Add MSTest NuGet packages to project
 * Remove NUnit packages from project
 
+For details on features see unit tests.
 For more info see [TODO.txt](TODO.txt).
