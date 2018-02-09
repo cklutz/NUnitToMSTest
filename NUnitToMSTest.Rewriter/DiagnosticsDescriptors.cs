@@ -50,16 +50,26 @@ namespace NUnitToMSTest.Rewriter
             DiagnosticSeverity.Warning,
             true);
 
-        public static readonly DiagnosticDescriptor MethodMustBeStaticForAttribute = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor IncompatibleClassInitiazeMethod = new DiagnosticDescriptor(
             GetId(6),
-            nameof(MethodMustBeStaticForAttribute),
-            "Methods attributed with '[{0}]' must be static in MSTest, or they will not be invoked. Review and change method '{1}' manually.",
+            nameof(IncompatibleClassInitiazeMethod),
+            "Method '{0}' has wrong signature. The method must be static, public, does not return a value and have a parameter of type TestContext. "+
+            "Additionally, if you are using async-await in method then return-type must be Task.",
+            AttributeRewriteCategory,
+            DiagnosticSeverity.Warning,
+            true);
+
+        public static readonly DiagnosticDescriptor IncompatibleClassCleanupMethod = new DiagnosticDescriptor(
+            GetId(7),
+            nameof(IncompatibleClassCleanupMethod),
+            "Method '{0}' has wrong signature. The method must be static, public, does not return a value and have no parameters. "+
+            "Additionally, if you are using async-await in method then return-type must be Task.",
             AttributeRewriteCategory,
             DiagnosticSeverity.Warning,
             true);
 
         public static readonly DiagnosticDescriptor UnsupportedAttributeUsage = new DiagnosticDescriptor(
-            GetId(7),
+            GetId(10),
             nameof(UnsupportedAttributeUsage),
             "The usage of the attribute '[{0}]' is not supported. Manual handling required. {1}",
             AttributeRewriteCategory,
@@ -67,7 +77,7 @@ namespace NUnitToMSTest.Rewriter
             true);
 
         public static readonly DiagnosticDescriptor CannotRemovePackage = new DiagnosticDescriptor(
-            GetId(8),
+            GetId(11),
             nameof(CannotRemovePackage),
             "{0}",
             AttributeRewriteCategory,

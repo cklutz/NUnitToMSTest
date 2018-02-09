@@ -3,20 +3,10 @@
 Bugs?
 -----------------------------------------------------------------------------------------
 
-[TestMethod, TestCaseSource(typeof(TD), "xxx")]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                 not transformed
-
 [TestInitialize], [TestCleanup]
 
     "Method <FOO> has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter.
     Additionally, if you are using async-await in method then return-type must be Task."
-
-[ClassInitialize], [ClassCleanup]
-
-    "Method <FOO> has wrong signature. The method must be static, public, does not return a value and have a parameter of type TestContext.
-    Additionally, if you are using async-await in method then return-type must be Task."
-
 
 Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMemoryException));
 

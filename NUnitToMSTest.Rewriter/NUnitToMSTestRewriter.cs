@@ -144,11 +144,11 @@ namespace NUnitToMSTest.Rewriter
                         node = node.WithName(SyntaxFactory.IdentifierName("TestCleanup"));
                         break;
                     case "NUnit.Framework.OneTimeSetUpAttribute":
-                        WarnIfCurrentMethodNotStatic("ClassInitialize", location);
+                        WarnIfNotSuitableForClassInitialize("ClassInitialize", location, true);
                         node = node.WithName(SyntaxFactory.IdentifierName("ClassInitialize"));
                         break;
                     case "NUnit.Framework.OneTimeTearDownAttribute":
-                        WarnIfCurrentMethodNotStatic("ClassCleanup", location);
+                        WarnIfNotSuitableForClassInitialize("ClassCleanup", location, false);
                         node = node.WithName(SyntaxFactory.IdentifierName("ClassCleanup"));
                         break;
 
@@ -229,12 +229,51 @@ namespace NUnitToMSTest.Rewriter
             }
         }
 
-        private void WarnIfCurrentMethodNotStatic(string attributeName, Location location)
+        private void WarnIfNotSuitableForClassInitialize(string attributeName, Location location, bool isInitialize)
         {
-            if (m_perMethodState.CurrentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.StaticKeyword))
+            var currentMethod = m_perMethodState.CurrentMethod;
+
+            if (currentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.StaticKeyword) ||
+                currentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.PublicKeyword))
             {
-                m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.MethodMustBeStaticForAttribute, location,
-                    attributeName, m_perMethodState.CurrentMethod.Identifier));
+                m_diagnostics.Add(Diagnostic.Create(
+                    isInitialize ?
+                        DiagnosticsDescriptors.IncompatibleClassInitiazeMethod :
+                        DiagnosticsDescriptors.IncompatibleClassCleanupMethod,
+                    location, m_perMethodState.CurrentMethod.Identifier));
+                return;
+            }
+
+            var parameters = currentMethod.ParameterList.Parameters;
+
+            if (isInitialize)
+            {
+                if (parameters == null || parameters.Count != 1)
+                {
+                    m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.IncompatibleClassInitiazeMethod,
+                        location, m_perMethodState.CurrentMethod.Identifier));
+                }
+                else
+                {
+                    var param0 = parameters[0];
+
+                    var convertedType = m_semanticModel.GetTypeInfo(param0).ConvertedType;
+                    var typeName = m_semanticModel.Compilation.GetTypeByMetadataName("Microsoft.VisualStudio.TestTools.UnitTesting.TestContext");
+                    if (!convertedType.Equals(typeName))
+                    {
+                        m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.IncompatibleClassInitiazeMethod,
+                            location, m_perMethodState.CurrentMethod.Identifier));
+                    }
+                }
+            }
+            else
+            {
+                if (parameters != null && parameters.Any())
+                {
+                    m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.IncompatibleClassCleanupMethod,
+                        location, m_perMethodState.CurrentMethod.Identifier));
+
+                }
             }
         }
 

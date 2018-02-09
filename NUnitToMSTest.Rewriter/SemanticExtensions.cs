@@ -21,6 +21,16 @@ namespace NUnitToMSTest.Rewriter
             return false;
         }
 
+        public static bool HasResult<T>(this SemanticModel semanticModel, ExpressionSyntax expression)
+        {
+            if (expression != null)
+            {
+                var ti = semanticModel.GetTypeInfo(expression);
+                return semanticModel.TypeSymbolMatchesType(ti.ConvertedType, typeof(T));
+            }
+            return false;
+        }
+
         public static ISymbol FindSymbol<T>(this Compilation compilation, Func<ISymbol, bool> predicate)
             where T : SyntaxNode
         {

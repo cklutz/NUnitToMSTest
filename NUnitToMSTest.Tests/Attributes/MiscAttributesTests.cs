@@ -1,5 +1,4 @@
 ﻿using System.Linq;
-using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NUnitToMSTest.Rewriter;
 using NUnitToMSTest.Tests.Support;
@@ -17,10 +16,10 @@ using NUnit.Framework;
 [TestFixture]
 public class FooTests
 { 
-    [SetUp] void Setup() {}
-    [TearDown] void Teardown() {}
-    [OneTimeSetUp] static void SetupOnce() {}
-    [OneTimeTearDown] static void TeardownOnce() {}
+    [SetUp] public void Setup() {}
+    [TearDown] public void Teardown() {}
+    [OneTimeSetUp] public static void SetupOnce() {}
+    [OneTimeTearDown] public static void TeardownOnce() {}
 }
 ";
             const string expected = @"
@@ -28,23 +27,25 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 [TestClass]
 public class FooTests
 { 
-    [TestInitialize] void Setup() {}
-    [TestCleanup] void Teardown() {}
-    [ClassInitialize] static void SetupOnce() {}
-    [ClassCleanup] static void TeardownOnce() {}
+    [TestInitialize] public void Setup() {}
+    [TestCleanup] public void Teardown() {}
+    [ClassInitialize] public static void SetupOnce() {}
+    [ClassCleanup] public static void TeardownOnce() {}
 }
 ";
             TestRefactoring(actual, expected,
                 (result, rw) =>
                 {
                     Assert.IsTrue(rw.Changed);
-                    Assert.AreEqual(0, rw.Diagnostics.Count());
+                    // One diagnostic, because SetupOnce() does not have a "TestContext" parameter, which we currently don't add
+                    // automatically during conversion.
+                    Assert.AreEqual(1, rw.Diagnostics.Count(d => d.Id == DiagnosticsDescriptors.IncompatibleClassInitiazeMethod.Id));
                     Assert.AreEqual(expected, result.ToFullString());
                 });
         }
 
         [TestMethod]
-        public void SetupTeardownNonStatic()
+        public void SetupIssues()
         {
             const string actual = @"
 using NUnit.Framework;
@@ -52,7 +53,9 @@ using NUnit.Framework;
 public class FooTests
 { 
     [OneTimeSetUp] void SetupOnce() {}
-    [OneTimeTearDown] void TeardownOnce() {}
+    [OneTimeSetUp] static void SetupOnce() {}
+    [OneTimeSetUp] public void SetupOnce() {}
+    [OneTimeSetUp] public static void SetupOnce() {}
 }
 ";
             const string expected = @"
@@ -61,14 +64,48 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 public class FooTests
 { 
     [ClassInitialize] void SetupOnce() {}
-    [ClassCleanup] void TeardownOnce() {}
+    [ClassInitialize] static void SetupOnce() {}
+    [ClassInitialize] public void SetupOnce() {}
+    [ClassInitialize] public static void SetupOnce() {}
 }
 ";
             TestRefactoring(actual, expected,
                 (result, rw) =>
                 {
                     Assert.IsTrue(rw.Changed);
-                    Assert.AreEqual(2, rw.Diagnostics.Count(d => d.Id == DiagnosticsDescriptors.MethodMustBeStaticForAttribute.Id));
+                    Assert.AreEqual(4, rw.Diagnostics.Count(d => d.Id == DiagnosticsDescriptors.IncompatibleClassInitiazeMethod.Id));
+                    Assert.AreEqual(expected, result.ToFullString());
+                });
+        }
+
+        [TestMethod]
+        public void TeardownIssues()
+        {
+            const string actual = @"
+using NUnit.Framework;
+[TestFixture]
+public class FooTests
+{ 
+    [OneTimeTearDown] void TeardownOnce() {}
+    [OneTimeTearDown] static void TeardownOnce() {}
+    [OneTimeTearDown] public void TeardownOnce() {}
+}
+";
+            const string expected = @"
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+[TestClass]
+public class FooTests
+{ 
+    [ClassCleanup] void TeardownOnce() {}
+    [ClassCleanup] static void TeardownOnce() {}
+    [ClassCleanup] public void TeardownOnce() {}
+}
+";
+            TestRefactoring(actual, expected,
+                (result, rw) =>
+                {
+                    Assert.IsTrue(rw.Changed);
+                    Assert.AreEqual(3, rw.Diagnostics.Count(d => d.Id == DiagnosticsDescriptors.IncompatibleClassCleanupMethod.Id));
                     Assert.AreEqual(expected, result.ToFullString());
                 });
         }
