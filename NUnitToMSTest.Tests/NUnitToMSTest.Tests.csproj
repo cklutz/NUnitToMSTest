@@ -152,13 +152,15 @@
     <Compile Include="Asserts\NestedTests.cs" />
     <Compile Include="Asserts\BooleanThatTests.cs" />
     <Compile Include="Asserts\GreaterLessOrEqualTests.cs" />
+    <Compile Include="Asserts\InstanceOfTypeTests.cs" />
     <Compile Include="Asserts\NullNotNullTests.cs" />
     <Compile Include="Asserts\ThrowsTests.cs" />
     <Compile Include="Attributes\DescriptionAttributeTests.cs" />
     <Compile Include="Attributes\CategoryAttributeTests.cs" />
+    <Compile Include="Attributes\SetupTeardownTests.cs" />
     <Compile Include="Attributes\PropertyAttributeTests.cs" />
     <Compile Include="Attributes\IgnoreAttributeTests.cs" />
-    <Compile Include="Attributes\MiscAttributesTests.cs" />
+    <Compile Include="Attributes\OneTimeSetupTeardownTests.cs" />
     <Compile Include="Attributes\TestCaseSourceAttributeTests.cs" />
     <Compile Include="Support\RefactoringTestBase.cs" />
     <Compile Include="Support\TestOptions.cs" />

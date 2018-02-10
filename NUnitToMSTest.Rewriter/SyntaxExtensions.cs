@@ -255,6 +255,16 @@ namespace NUnitToMSTest.Rewriter
             return SyntaxTriviaList.Empty;
         }
 
+        public static bool IsVoid(this TypeSyntax syntax)
+        {
+            if (syntax is PredefinedTypeSyntax pre)
+            {
+                return pre.Keyword.Kind() == SyntaxKind.VoidKeyword;
+            }
+
+            return false;
+        }
+
         public static bool TypeSymbolMatchesType(this SemanticModel semanticModel, ITypeSymbol typeSymbol, Type type)
         {
             return GetTypeSymbolForType(type, semanticModel).Equals(typeSymbol);

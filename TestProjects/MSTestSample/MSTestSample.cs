@@ -59,6 +59,11 @@ namespace MSTestSample
 
         }
 
+        [TestMethod]
+        public void Vanilla()
+        {
+            Assert.IsInstanceOfType(GetType(), typeof(Type));
+        }
         
         [DynamicData("sourceName")]
         [DynamicData("sourceName", typeof(MSTestSample), DynamicDataSourceType.Method)]

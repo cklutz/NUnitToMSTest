@@ -3,16 +3,16 @@
 Bugs?
 -----------------------------------------------------------------------------------------
 
-[TestInitialize], [TestCleanup]
+We did convert Assert.That(() => Dummy, Throws.InstanceOf<OutOfMemoryException>()) to
+something like this: 
 
-    "Method <FOO> has wrong signature. The method must be non-static, public, does not return a value and should not take any parameter.
-    Additionally, if you are using async-await in method then return-type must be Task."
+    Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMemoryException));
 
-Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMemoryException));
+This doesn't work in practice, because Assert.ThrowsException<Exception>(),
+will fail if not exactly System.Exception is thrown.
 
-    This doesn't work in practice, because Assert.ThrowsException<Exception>(),
-    will fail if not exactly System.Exception is thrown.
-    We would need to do something like this:
+We would need to do something like this:
+
     try {
         /* test */
         Assert.Fail($"Expected exception of type {exceptionType}.");
@@ -20,6 +20,7 @@ Assert.IsInstanceOfType(Assert.ThrowsException<Exception>(Dummy),typeof(OutOfMem
         Assert.IsInstanceOfType(ex, exceptionType);
     }
 
+So currently, this is commented out and will not be converted.
 
 -----------------------------------------------------------------------------------------
 Package
@@ -31,10 +32,6 @@ and no contained files are unsaved, etc.
 -----------------------------------------------------------------------------------------
 Asserts
 -----------------------------------------------------------------------------------------
-
-Assert.IsInstanceOfType, ...
-
-    Assert.IsInstanceOfType(exp, type)
 
 CollectionAssert.AreEqual(ICollection, ICollection)
 
@@ -72,8 +69,5 @@ Assert.That(() => result, Is.Not.Null.Or.Empty, "dldldl");
 Assert.That(() => /*whatever*/, Throws.InnerException.InstanceOf<DirectoryNotFoundException>());
 Assert.That(() => /*whatever*/, Throws.InnerException.TypeOf<DirectoryNotFoundException>());
 
-    Can be manually handled by:
+    Must be manually handled.
 
-            Assert.InstanceOfType(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException, typeof(DirectoryNotFoundException));
-
-            Assert.AreEqual(Assert.ThrowsException<Exception>(() => /*whatever*/).InnerException?.GetType(), typeof(DirectoryNotFoundException));

@@ -53,7 +53,7 @@ namespace NUnitToMSTest.Rewriter
         public static readonly DiagnosticDescriptor IncompatibleClassInitiazeMethod = new DiagnosticDescriptor(
             GetId(6),
             nameof(IncompatibleClassInitiazeMethod),
-            "Method '{0}' has wrong signature. The method must be static, public, does not return a value and have a parameter of type TestContext. "+
+            "Method '{0}' has wrong signature for use as {1}. The method must be static, public, does not return a value and have a parameter of type TestContext. "+
             "Additionally, if you are using async-await in method then return-type must be Task.",
             AttributeRewriteCategory,
             DiagnosticSeverity.Warning,
@@ -62,7 +62,25 @@ namespace NUnitToMSTest.Rewriter
         public static readonly DiagnosticDescriptor IncompatibleClassCleanupMethod = new DiagnosticDescriptor(
             GetId(7),
             nameof(IncompatibleClassCleanupMethod),
-            "Method '{0}' has wrong signature. The method must be static, public, does not return a value and have no parameters. "+
+            "Method '{0}' has wrong signature for use as {1}. The method must be static, public, does not return a value and have no parameters. "+
+            "Additionally, if you are using async-await in method then return-type must be Task.",
+            AttributeRewriteCategory,
+            DiagnosticSeverity.Warning,
+            true);
+
+        public static readonly DiagnosticDescriptor IncompatibleTestInitiazeMethod = new DiagnosticDescriptor(
+            GetId(8),
+            nameof(IncompatibleTestInitiazeMethod),
+            "Method '{0}' has wrong signature for use as {1}. The method must be non-static, public, does not return a value and should not take any parameter. " +
+            "Additionally, if you are using async-await in method then return-type must be Task.",
+            AttributeRewriteCategory,
+            DiagnosticSeverity.Warning,
+            true);
+
+        public static readonly DiagnosticDescriptor IncompatibleTestCleanupMethod = new DiagnosticDescriptor(
+            GetId(9),
+            nameof(IncompatibleTestCleanupMethod),
+            "Method '{0}' has wrong signature for use as {1}. The method must be non-static, public, does not return a value and should not take any parameter. " +
             "Additionally, if you are using async-await in method then return-type must be Task.",
             AttributeRewriteCategory,
             DiagnosticSeverity.Warning,

@@ -39,7 +39,8 @@ namespace UnitTestSample
         [Test]
         public void Vanilla()
         {
-            Console.WriteLine(nameof(Vanilla));
+            Assert.IsInstanceOf(typeof(Type), GetType());
+            Assert.IsInstanceOf<Type>(GetType());
         }
 
         [Ignore("Message", Until = "Forever")]

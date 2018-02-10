@@ -138,9 +138,11 @@ namespace NUnitToMSTest.Rewriter
                 switch (existingTypeName)
                 {
                     case "NUnit.Framework.SetUpAttribute":
+                        WarnIfNotSuitableForTestInitialize("TestInitialize", location, true);
                         node = node.WithName(SyntaxFactory.IdentifierName("TestInitialize"));
                         break;
                     case "NUnit.Framework.TearDownAttribute":
+                        WarnIfNotSuitableForTestInitialize("TestCleanup", location, false);
                         node = node.WithName(SyntaxFactory.IdentifierName("TestCleanup"));
                         break;
                     case "NUnit.Framework.OneTimeSetUpAttribute":
@@ -229,18 +231,36 @@ namespace NUnitToMSTest.Rewriter
             }
         }
 
+        private void WarnIfNotSuitableForTestInitialize(string attributeName, Location location, bool isInitialize)
+        {
+            var currentMethod = m_perMethodState.CurrentMethod;
+
+            if (currentMethod.Modifiers.Any(m => m.Kind() == SyntaxKind.StaticKeyword) ||
+                currentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.PublicKeyword) ||
+                !currentMethod.ReturnType.IsVoid() ||
+                currentMethod.ParameterList?.Parameters.Count > 0)
+            {
+                m_diagnostics.Add(Diagnostic.Create(
+                    isInitialize ?
+                        DiagnosticsDescriptors.IncompatibleTestInitiazeMethod:
+                        DiagnosticsDescriptors.IncompatibleTestCleanupMethod,
+                    location, m_perMethodState.CurrentMethod.Identifier, attributeName));
+            }
+        }
+
         private void WarnIfNotSuitableForClassInitialize(string attributeName, Location location, bool isInitialize)
         {
             var currentMethod = m_perMethodState.CurrentMethod;
 
             if (currentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.StaticKeyword) ||
-                currentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.PublicKeyword))
+                currentMethod.Modifiers.All(m => m.Kind() != SyntaxKind.PublicKeyword) ||
+                !currentMethod.ReturnType.IsVoid())
             {
                 m_diagnostics.Add(Diagnostic.Create(
                     isInitialize ?
                         DiagnosticsDescriptors.IncompatibleClassInitiazeMethod :
                         DiagnosticsDescriptors.IncompatibleClassCleanupMethod,
-                    location, m_perMethodState.CurrentMethod.Identifier));
+                    location, m_perMethodState.CurrentMethod.Identifier, attributeName));
                 return;
             }
 
@@ -251,18 +271,17 @@ namespace NUnitToMSTest.Rewriter
                 if (parameters == null || parameters.Count != 1)
                 {
                     m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.IncompatibleClassInitiazeMethod,
-                        location, m_perMethodState.CurrentMethod.Identifier));
+                        location, m_perMethodState.CurrentMethod.Identifier, attributeName));
                 }
                 else
                 {
                     var param0 = parameters[0];
 
-                    var convertedType = m_semanticModel.GetTypeInfo(param0).ConvertedType;
-                    var typeName = m_semanticModel.Compilation.GetTypeByMetadataName("Microsoft.VisualStudio.TestTools.UnitTesting.TestContext");
-                    if (!convertedType.Equals(typeName))
+                    var convertedType = m_semanticModel.GetTypeInfo(param0.Type).ConvertedType;
+                    if (!"Microsoft.VisualStudio.TestTools.UnitTesting.TestContext".Equals(convertedType?.ToDisplayString()))
                     {
                         m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.IncompatibleClassInitiazeMethod,
-                            location, m_perMethodState.CurrentMethod.Identifier));
+                            location, m_perMethodState.CurrentMethod.Identifier, attributeName));
                     }
                 }
             }
@@ -271,7 +290,7 @@ namespace NUnitToMSTest.Rewriter
                 if (parameters != null && parameters.Any())
                 {
                     m_diagnostics.Add(Diagnostic.Create(DiagnosticsDescriptors.IncompatibleClassCleanupMethod,
-                        location, m_perMethodState.CurrentMethod.Identifier));
+                        location, m_perMethodState.CurrentMethod.Identifier, attributeName));
 
                 }
             }
@@ -556,6 +575,65 @@ namespace NUnitToMSTest.Rewriter
                 {
                     node = TransformGreaterLess(node, ma);
                 }
+                else if ("IsInstanceOf".Equals(ma.Name?.Identifier.ToString()))
+                {
+                    node = TransformIsInstanceOf(node, ma);
+                }
+            }
+
+            return node;
+        }
+
+        private static InvocationExpressionSyntax TransformIsInstanceOf(InvocationExpressionSyntax node,
+            MemberAccessExpressionSyntax ma)
+        {
+            if (node.ArgumentList == null || node.ArgumentList.Arguments.Count < 1)
+            {
+                return node;
+            }
+
+            var arg0 = node.ArgumentList.Arguments[0];
+
+            Console.WriteLine(ma.Name);
+            if (ma.Name.TryGetGenericNameSyntax(out var genericNameSyntax) &&
+                genericNameSyntax.NumberOfArguments() == 1)
+            {
+                // NUnit: Assert.IsInstanceOf<T>(arg0, ...)
+                // MSTest: Assert.IsInstanceOfType(arg0, typeof(T), ...)
+                var remainingArguments = node.ArgumentList.Arguments.Skip(1);
+
+                var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                argList = argList.Add(arg0);
+                argList = argList.Add(SyntaxFactory.Argument(
+                    SyntaxFactory.TypeOfExpression(genericNameSyntax.TypeArgumentList.Arguments[0])));
+                if (remainingArguments.Any())
+                {
+                    argList = argList.AddRange(remainingArguments);
+                }
+
+                ma = ma.WithName(SyntaxFactory.IdentifierName("IsInstanceOfType"));
+                node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                    .NormalizeWhitespace());
+            }
+            else if (node.ArgumentList.Arguments.Count >= 2)
+            {
+                // NUnit: Assert.IsInstanceOf(arg0, arg1, ...)
+                // MSTest: Assert.IsInstanceOfType(arg1, arg0, ...)
+
+                var arg1 = node.ArgumentList.Arguments[1];
+                var remainingArguments = node.ArgumentList.Arguments.Skip(2);
+
+                var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                argList = argList.Add(arg1);
+                argList = argList.Add(arg0);
+                if (remainingArguments.Any())
+                {
+                    argList = argList.AddRange(remainingArguments);
+                }
+
+                ma = ma.WithName(SyntaxFactory.IdentifierName("IsInstanceOfType"));
+                node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                    .NormalizeWhitespace());
             }
 
             return node;
