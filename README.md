@@ -2,7 +2,13 @@
 
 A Visual Studio extension to convert a project, using the NUnit test framework, to use MSTest V2.
 
-[![Build status](https://ci.appveyor.com/api/projects/status/6v5cje0d93w6ivf8?svg=true)](https://ci.appveyor.com/project/cklutz/nunittomstest)
+## Status
+
+|   | Build & Test |
+|---|:-----:|
+|![Win](docs/images/win_med.png) **Windows**|[![Build status](https://ci.appveyor.com/api/projects/status/6v5cje0d93w6ivf8?svg=true)](https://ci.appveyor.com/project/cklutz/nunittomstest)|
+
+## Features
 
 Feature Overview:
 
@@ -36,3 +42,13 @@ during the conversion process.
 
 ![warnings](docs/images/errorlist.png)
 
+
+## Build
+
+To build and test everything, simply use:
+
+     build-full.cmd
+
+You will find a VSIX as `NUnitToMSTestPackage\bin\Release\NUnitToMSTestPackage.vsix`.
+
+(Release build instructions are [here](docs/Releases.md).)
