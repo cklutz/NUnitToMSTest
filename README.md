@@ -2,6 +2,8 @@
 
 A Visual Studio extension to convert a project, using the NUnit test framework, to use MSTest V2.
 
+[![Build status](https://ci.appveyor.com/api/projects/status/6v5cje0d93w6ivf8?svg=true)](https://ci.appveyor.com/project/cklutz/nunittomstest)
+
 Feature Overview:
 
 * Convert common attributes

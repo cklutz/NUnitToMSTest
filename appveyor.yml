@@ -1,0 +1,12 @@
+version: 1.0.{build}
+image: Visual Studio 2017
+configuration: Release
+platform: Any CPU
+cache: packages
+build:
+  project: NUnitToMSTest.sln
+  verbosity: minimal
+test:
+  assemblies:
+    only:
+    - NUnitToMSTest.Tests*.dll
