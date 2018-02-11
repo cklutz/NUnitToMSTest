@@ -4,7 +4,7 @@ configuration: Release
 platform: Any CPU
 cache: packages
 before_build:
-- nuget restore
+  - nuget restore
 build:
   project: NUnitToMSTest.sln
   verbosity: minimal
@@ -12,3 +12,22 @@ test:
   assemblies:
     only:
     - NUnitToMSTest.Tests*.dll
+artifacts:
+  - path: NUnitToMSTestPackage\bin\Release\NUnitToMSTestPackage.vsix
+    name: VSIX
+deploy:
+  # Having "tag" set to the original repo-tag is utterly important, or each
+  # build will create a new tag and spawn a new build in consequence - going
+  # on endlessly (see http://help.appveyor.com/discussions/problems/3362-deployment-to-github).
+  tag: $(appveyor_repo_tag_name)
+  # For now, we use the tag name.
+  #release: cklutz-tasks-v$(appveyor_build_version)
+  description: 'NUnit To MSTest VS Package'
+  provider: GitHub
+  auth_token:
+    secure: JqHA68F4hpk9M0hqTsZjOKE5S12lGEZG8gRZTimIFQ/9L4vY+OAzC3Gs3rEjlPWx
+  artifact: VSIX
+  draft: false
+  prerelease: false
+  on:
+    appveyor_repo_tag: true  
