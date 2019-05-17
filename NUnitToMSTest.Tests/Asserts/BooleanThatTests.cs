@@ -21,6 +21,12 @@ public class FooTests
         Assert.That(true, ""message"");
         Assert.That(Func(), ""message"");
         Assert.That(1.Bar(), ""message"");
+        Assert.That(true, Is.True);
+        Assert.That(false, Is.False);
+        Assert.That(null, Is.Null);
+        Assert.That("""", Is.Not.Null);
+        Assert.That(Func(), Is.EqualTo(""message""));
+        Assert.That(Func(), Is.Not.EqualTo(""message""));
     }
 }
 public static class Extensions { public static bool Bar(this int i) { return true; } }
@@ -36,6 +42,12 @@ public class FooTests
         Assert.IsTrue(true, ""message"");
         Assert.IsTrue(Func(), ""message"");
         Assert.IsTrue(1.Bar(), ""message"");
+        Assert.IsTrue(true);
+        Assert.IsFalse(false);
+        Assert.IsNull(null);
+        Assert.IsNotNull("""");
+        Assert.AreEqual(""message"", Func());
+        Assert.AreNotEqual(""message"", Func());
     }
 }
 public static class Extensions { public static bool Bar(this int i) { return true; } }

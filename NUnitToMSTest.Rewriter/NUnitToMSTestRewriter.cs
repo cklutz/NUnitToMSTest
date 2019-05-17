@@ -79,7 +79,7 @@ namespace NUnitToMSTest.Rewriter
 
         public override SyntaxNode VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            // Intialize
+            // Initialize
             m_perMethodState.Reset(node);
 
             // Process nodes / children
@@ -535,6 +535,70 @@ namespace NUnitToMSTest.Rewriter
                         //            details, remainingArguments)
                         //        .WithLeadingTrivia(node.GetClosestWhitespaceTrivia(true));
                         //}
+                        else if (secondArgument.ToString() == "Is.True")
+                        {
+                            // A simple ==> Assert.That(<boolean expression>, Is.True); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsTrue"));
+                            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                            argList = argList.Add(firstArgument);
+                            node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                                .NormalizeWhitespace());
+                        }
+                        else if (secondArgument.ToString() == "Is.False")
+                        {
+                            // A simple ==> Assert.That(<boolean expression>, Is.False); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsFalse"));
+                            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                            argList = argList.Add(firstArgument);
+                            node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                                .NormalizeWhitespace());
+                        }
+                        else if (secondArgument.ToString() == "Is.Null")
+                        {
+                            // A simple ==> Assert.That(<object>, Is.Null); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsNull"));
+                            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                            argList = argList.Add(firstArgument);
+                            node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                                .NormalizeWhitespace());
+                        }
+                        else if (secondArgument.ToString() == "Is.Not.Null")
+                        {
+                            // A simple ==> Assert.That(<object>, Is.Not.Null); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("IsNotNull"));
+                            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                            argList = argList.Add(firstArgument);
+                            node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                                .NormalizeWhitespace());
+                        }
+                        else if (secondArgument.ToString().StartsWith("Is.EqualTo"))
+                        {
+                            // Assert.That(<expression>, Is.EqualTo(<expression>)); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("AreEqual"));
+
+                            if (!(secondArgument.Expression is InvocationExpressionSyntax argumentExpression))
+                                return node;
+
+                            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                            argList = argList.Add(argumentExpression.ArgumentList.Arguments[0]);
+                            argList = argList.Add(firstArgument);
+                            node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                                .NormalizeWhitespace());
+                        }
+                        else if (secondArgument.ToString().StartsWith("Is.Not.EqualTo"))
+                        {
+                            // Assert.That(<expression>, Is.Not.EqualTo(<expression>)); 
+                            ma = ma.WithName(SyntaxFactory.IdentifierName("AreNotEqual"));
+
+                            if (!(secondArgument.Expression is InvocationExpressionSyntax argumentExpression))
+                                return node;
+
+                            var argList = new SeparatedSyntaxList<ArgumentSyntax>();
+                            argList = argList.Add(argumentExpression.ArgumentList.Arguments[0]);
+                            argList = argList.Add(firstArgument);
+                            node = node.WithExpression(ma).WithArgumentList(SyntaxFactory.ArgumentList(argList)
+                                .NormalizeWhitespace());
+                        }
                         else if (m_semanticModel.HasBooleanResult(firstArgument.Expression))
                         {
                             // A simple ==> Assert.That(<boolean expression>); 
