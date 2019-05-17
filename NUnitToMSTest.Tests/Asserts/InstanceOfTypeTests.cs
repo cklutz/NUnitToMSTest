@@ -28,9 +28,9 @@ public class FooTests
 { 
     void Test()
     {
-        Assert.IsInstanceOfType(GetType(), typeof (Type));
-        Assert.IsInstanceOfType(GetType(), typeof (Type), ""message"");
-        Assert.IsInstanceOfType(GetType(), typeof (Type), ""message {0}"", 1);
+        Assert.IsInstanceOfType(GetType(), typeof(Type));
+        Assert.IsInstanceOfType(GetType(), typeof(Type), ""message"");
+        Assert.IsInstanceOfType(GetType(), typeof(Type), ""message {0}"", 1);
     }
 }
 ";
@@ -64,9 +64,9 @@ public class FooTests
 { 
     void Test()
     {
-        Assert.IsInstanceOfType(GetType(), typeof (Type));
-        Assert.IsInstanceOfType(GetType(), typeof (Type), ""message"");
-        Assert.IsInstanceOfType(GetType(), typeof (Type), ""message {0}"", 1);
+        Assert.IsInstanceOfType(GetType(), typeof(Type));
+        Assert.IsInstanceOfType(GetType(), typeof(Type), ""message"");
+        Assert.IsInstanceOfType(GetType(), typeof(Type), ""message {0}"", 1);
     }
 }
 ";
