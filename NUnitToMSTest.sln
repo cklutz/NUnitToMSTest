@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27130.2027
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28803.452
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NUnitToMSTest", "NUnitToMSTest\NUnitToMSTest.csproj", "{0D95D56D-A992-4C4F-B771-0E77B80C629F}"
 EndProject
@@ -19,6 +19,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NUnitToMSTest.Tests", "NUni
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EF106271-452E-45F0-BDD4-AC9687FA36A5}"
 	ProjectSection(SolutionItems) = preProject
+		build-full.cmd = build-full.cmd
 		TODO.txt = TODO.txt
 	EndProjectSection
 EndProject

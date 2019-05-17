@@ -43,9 +43,9 @@ public class FooTests
     [DynamicData(""Method"")]
     [DynamicData(""Method"")]
     [DynamicData(""Property"", DynamicDataSourceType.Property)]
-    [DynamicData(""Method"", typeof (FooTests))]
-    [DynamicData(""MethodFromHelper"", typeof (Helper))]
-    [DynamicData(""PropertyFromHelper"", typeof (Helper), DynamicDataSourceType.Property)]
+    [DynamicData(""Method"", typeof(FooTests))]
+    [DynamicData(""MethodFromHelper"", typeof(Helper))]
+    [DynamicData(""PropertyFromHelper"", typeof(Helper), DynamicDataSourceType.Property)]
     void Test(int a, int b, int c) {}
 
     IEnumerable<object[]> Method() { return null; }
